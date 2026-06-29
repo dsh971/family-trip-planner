@@ -45,3 +45,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude / agent
+.claude/
+CLAUDE.md
+AGENTS.md
+docs/
+
+# playwright artifacts
+playwright-report/
+test-results/
