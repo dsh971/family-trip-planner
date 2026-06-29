@@ -1,0 +1,15 @@
+{
+  "anchor": {
+    "query": "Kichijoji, Tokyo, Japan",
+    "lat": 35.7022,
+    "lng": 139.5795,
+    "country": "JP",
+    "display": "Kichijoji, Musashino, Tokyo, Japan",
+    "city": "Kichijoji"
+  },
+  "radius_meters": 1200,
+  "pair": ["Musashino Supper Club", "Inokashira Park"],
+  "pair_distance_meters": 450,
+  "pairs": null,
+  "note": "pairs requires sync-city data to be hydrated; pair_distance_meters is from OSM cache"
+}

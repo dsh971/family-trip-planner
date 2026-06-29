@@ -1,0 +1,59 @@
+{
+  "anchor": {
+    "query": "Kichijoji, Tokyo, Japan",
+    "lat": 35.7022,
+    "lng": 139.5795,
+    "country": "JP",
+    "display": "Kichijoji, Musashino, Tokyo, Japan",
+    "city": "Kichijoji"
+  },
+  "results": [
+    {
+      "name": "Musashino Supper Club",
+      "lat": 35.7015,
+      "lng": 139.5790,
+      "address": "1-1-2 Kichijoji-honcho, Musashino, Tokyo",
+      "walking_minutes": 3,
+      "score": {
+        "total": 82,
+        "google_base": 78,
+        "locale_boost": 0,
+        "notability_boost": 4,
+        "reddit_boost": 0,
+        "criteria_match": 0
+      },
+      "sources": ["google_places"],
+      "evidence": null,
+      "why": "High Google rating with verified location near Kichijoji",
+      "business_status": "OPERATIONAL",
+      "google_maps_uri": "https://maps.google.com/?cid=12345"
+    },
+    {
+      "name": "Kichijoji Ramen Yamamoto",
+      "lat": 35.7030,
+      "lng": 139.5800,
+      "address": "2-3-1 Kichijoji-minami, Musashino, Tokyo",
+      "walking_minutes": 5,
+      "score": {
+        "total": 75,
+        "google_base": 73,
+        "locale_boost": 0,
+        "notability_boost": 2,
+        "reddit_boost": 0,
+        "criteria_match": 0
+      },
+      "sources": ["google_places"],
+      "evidence": null,
+      "why": "Popular ramen spot in Kichijoji",
+      "business_status": "OPERATIONAL",
+      "google_maps_uri": "https://maps.google.com/?cid=23456"
+    }
+  ],
+  "trace": {
+    "Region": "JP",
+    "SeedCount": 10,
+    "StageHits": 2,
+    "StubsSkipped": ["retty", "notecom", "hatena"],
+    "Errors": []
+  }
+}

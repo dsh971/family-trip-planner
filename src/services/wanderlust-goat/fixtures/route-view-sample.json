@@ -1,0 +1,23 @@
+{
+  "from": {
+    "query": "Musashino Supper Club, Kichijoji, Tokyo",
+    "lat": 35.7015,
+    "lng": 139.5790,
+    "country": "JP",
+    "display": "Musashino Supper Club, Kichijoji, Tokyo",
+    "city": "Kichijoji"
+  },
+  "to": {
+    "query": "Inokashira Park, Kichijoji, Tokyo",
+    "lat": 35.6993,
+    "lng": 139.5750,
+    "country": "JP",
+    "display": "Inokashira Park, Kichijoji, Tokyo",
+    "city": "Kichijoji"
+  },
+  "buffer_meters": 200,
+  "distance_meters": 450,
+  "walking_minutes": 6,
+  "along_route": null,
+  "note": "along_route requires sync-city data to be hydrated"
+}
