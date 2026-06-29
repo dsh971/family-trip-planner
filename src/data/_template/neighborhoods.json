@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Neighborhood Name",
+    "centroid": { "lat": 0.0, "lng": 0.0 },
+    "walkingRadiusMeters": 1200,
+    "familyFriendlinessScore": 80,
+    "dayInTheLifePreview": {
+      "highlights": ["Place A", "Place B"],
+      "safetyNote": "General safety note for families.",
+      "sampleBundle": "Lunch at X + afternoon at Y"
+    },
+    "sources": [
+      "Tier 1 publication (e.g. Time Out Tokyo)",
+      "Tier 2 publication (e.g. Japan with Kids)"
+    ]
+  }
+]

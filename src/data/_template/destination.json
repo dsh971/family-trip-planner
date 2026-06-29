@@ -1,0 +1,8 @@
+{
+  "slug": "city-slug",
+  "name": "City Name",
+  "country": "XX",
+  "defaultWalkingRadiusMeters": 1200,
+  "localeValidators": ["source-a", "source-b"],
+  "safetyDataSource": "Citation for SafetyArea entries — e.g. OSAC report URL"
+}

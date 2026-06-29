@@ -1,0 +1,8 @@
+[
+  {
+    "name": "District Name",
+    "geometry": { "type": "point", "lat": 0.0, "lng": 0.0 },
+    "riskType": "theft",
+    "sourceQuote": "Official advisory citation line"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "slug": "tokyo",
+  "name": "Tokyo",
+  "country": "JP",
+  "defaultWalkingRadiusMeters": 1200,
+  "localeValidators": ["tabelog", "hotpepper"],
+  "safetyDataSource": "OSAC Japan Crime & Safety Report 2024 (osac.gov/Content/Report/e0cc0bdd-5fb0-4edf-b7e2-31aaaae3f62e)"
+}

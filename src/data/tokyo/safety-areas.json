@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Roppongi",
+    "geometry": { "type": "point", "lat": 35.6628, "lng": 139.7314 },
+    "riskType": "assault",
+    "sourceQuote": "OSAC Japan Crime & Safety Report 2024: 'Roppongi is Tokyo's premier entertainment district and has a higher-than-average incidence of drink-spiking, assault, and theft targeting tourists, particularly late at night.'"
+  },
+  {
+    "name": "Kabuki-cho",
+    "geometry": { "type": "point", "lat": 35.6939, "lng": 139.7036 },
+    "riskType": "assault",
+    "sourceQuote": "OSAC Japan Crime & Safety Report 2024: 'Kabuki-cho in Shinjuku is Tokyo's largest red-light and entertainment district; drink-spiking, overcharging scams, and assault risks are elevated, especially after midnight.'"
+  },
+  {
+    "name": "Ikebukuro Entertainment District",
+    "geometry": { "type": "point", "lat": 35.7295, "lng": 139.7109 },
+    "riskType": "theft",
+    "sourceQuote": "OSAC Japan Crime & Safety Report 2024: 'The entertainment areas around Ikebukuro station's west exit have elevated pickpocketing and overcharging risks similar to Roppongi and Kabuki-cho.'"
+  },
+  {
+    "name": "Akasaka",
+    "geometry": { "type": "point", "lat": 35.6762, "lng": 139.7367 },
+    "riskType": "pickpocketing",
+    "sourceQuote": "OSAC Japan Crime & Safety Report 2024: 'Akasaka's bar and entertainment strips see periodic pickpocketing and tourist-targeting scams; visitors should keep valuables secure in crowded venues.'"
+  },
+  {
+    "name": "Harajuku Takeshita Street",
+    "geometry": { "type": "point", "lat": 35.6702, "lng": 139.7025 },
+    "riskType": "pickpocketing",
+    "sourceQuote": "OSAC Japan Crime & Safety Report 2024: 'Harajuku and Omotesando are generally safe but Takeshita Street experiences periodic pickpocketing in peak-crowd conditions due to its extreme density during weekends.'"
+  }
+]

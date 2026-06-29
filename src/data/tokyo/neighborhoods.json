@@ -1,0 +1,126 @@
+[
+  {
+    "name": "Kichijoji",
+    "centroid": { "lat": 35.7022, "lng": 139.5795 },
+    "walkingRadiusMeters": 1200,
+    "familyFriendlinessScore": 92,
+    "dayInTheLifePreview": {
+      "highlights": [
+        "Inokashira Park and petting zoo",
+        "Ghibli Museum (ticketed, book in advance)",
+        "Harmonica Yokocho alley for food"
+      ],
+      "safetyNote": "Quiet residential area; no flagged districts nearby. Well-lit streets with frequent convenience stores.",
+      "sampleBundle": "Lunch ramen at Musashino Supper Club + afternoon at Inokashira Park petting zoo"
+    },
+    "sources": [
+      "Time Out Tokyo — Best Tokyo neighborhoods for families (2024)",
+      "Japan with Kids — Kichijoji family guide",
+      "Lonely Planet Tokyo — Kichijoji chapter",
+      "Reddit r/JapanTravel — family trip reports (2023–2024, WG reddit-quotes)"
+    ]
+  },
+  {
+    "name": "Yanaka",
+    "centroid": { "lat": 35.7267, "lng": 139.7657 },
+    "walkingRadiusMeters": 1000,
+    "familyFriendlinessScore": 85,
+    "dayInTheLifePreview": {
+      "highlights": [
+        "Yanaka Ginza shopping street",
+        "Yanaka Cemetery (quiet, historic, family stroll)",
+        "Nezu Shrine"
+      ],
+      "safetyNote": "Traditional low-rise neighborhood; very low crime. Slow-paced — good for young children.",
+      "sampleBundle": "Melon pan from Yanaka Ginza + Nezu Shrine courtyard exploration"
+    },
+    "sources": [
+      "Condé Nast Traveler — Yanaka neighborhood guide",
+      "Japan Times — family travel Tokyo",
+      "Tokyo with Kids — Yanaka recommendations",
+      "Reddit r/JapanTravel — Yanaka with kids threads (WG reddit-quotes)"
+    ]
+  },
+  {
+    "name": "Asakusa",
+    "centroid": { "lat": 35.7148, "lng": 139.7967 },
+    "walkingRadiusMeters": 1200,
+    "familyFriendlinessScore": 80,
+    "dayInTheLifePreview": {
+      "highlights": [
+        "Senso-ji Temple and Nakamise shopping street",
+        "Sumida Park (riverside stroll)",
+        "Hanayashiki amusement park (small rides for young kids)"
+      ],
+      "safetyNote": "Busy tourist area; pickpocketing risk in crowded temple approach. Stay alert on Nakamise on peak days.",
+      "sampleBundle": "Ningyo-yaki sweets on Nakamise + morning Senso-ji visit before crowds"
+    },
+    "sources": [
+      "Lonely Planet Tokyo — Asakusa chapter",
+      "Time Out Tokyo — best areas for families",
+      "Japan with Kids — Asakusa with toddlers",
+      "Condé Nast Traveler — Tokyo family itinerary"
+    ]
+  },
+  {
+    "name": "Ueno",
+    "centroid": { "lat": 35.7128, "lng": 139.7741 },
+    "walkingRadiusMeters": 1200,
+    "familyFriendlinessScore": 74,
+    "dayInTheLifePreview": {
+      "highlights": [
+        "Ueno Zoo (giant pandas, kid-favorite)",
+        "Tokyo National Museum (Japanese history for older kids)",
+        "Ueno Park seasonal events and food stalls"
+      ],
+      "safetyNote": "Large park area is safe and family-friendly. Ameya-Yokocho market can be crowded — hold young children's hands in the market.",
+      "sampleBundle": "Morning at Ueno Zoo + lunch bento in Ueno Park"
+    },
+    "sources": [
+      "Japan with Kids — Ueno Zoo guide",
+      "Time Out Tokyo — Ueno family day out",
+      "Lonely Planet Tokyo — Ueno chapter",
+      "Reddit r/JapanTravel — Ueno with young kids (WG reddit-quotes)"
+    ]
+  },
+  {
+    "name": "Shimokitazawa",
+    "centroid": { "lat": 35.6614, "lng": 139.6680 },
+    "walkingRadiusMeters": 900,
+    "familyFriendlinessScore": 68,
+    "dayInTheLifePreview": {
+      "highlights": [
+        "Shimokita Flea Market (weekend vintage shopping)",
+        "Small independent cafes with garden seating",
+        "Honda Gekijou theatre (occasional family shows)"
+      ],
+      "safetyNote": "Bohemian, low-key neighborhood; very safe. Narrow streets mean strollers can be challenging in peak market times.",
+      "sampleBundle": "Coffee and cake at Bear Pond Espresso + weekend flea market browse"
+    },
+    "sources": [
+      "Time Out Tokyo — Shimokitazawa neighborhood guide",
+      "Condé Nast Traveler — Tokyo off-the-beaten-path",
+      "Reddit r/JapanTravel — family neighborhood recommendations (WG reddit-quotes)"
+    ]
+  },
+  {
+    "name": "Toyosu",
+    "centroid": { "lat": 35.6551, "lng": 139.7960 },
+    "walkingRadiusMeters": 1500,
+    "familyFriendlinessScore": 61,
+    "dayInTheLifePreview": {
+      "highlights": [
+        "TeamLab Planets immersive art (ages 4+ love the water floor)",
+        "Toyosu Market outer market for fresh sushi breakfast",
+        "LaLaport Toyosu shopping complex with kids' play areas"
+      ],
+      "safetyNote": "Modern bayside development; very safe and stroller-friendly wide streets. Wind can be strong near waterfront.",
+      "sampleBundle": "Morning sushi at Toyosu Market outer area + TeamLab Planets afternoon"
+    },
+    "sources": [
+      "Time Out Tokyo — TeamLab Planets review",
+      "Japan with Kids — Toyosu with children",
+      "Reddit r/JapanTravel — TeamLab family experience (WG reddit-quotes)"
+    ]
+  }
+]
