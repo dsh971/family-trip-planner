@@ -128,51 +128,80 @@ export async function POST(request: Request) {
     routesByDay.set(day.date, routes);
   }
 
-  // Persist: delete existing days+segments (rebuild from scratch)
-  db.delete(itineraryDays).where(eq(itineraryDays.tripId, tripId)).run();
+  // Persist: delete existing days+segments and rebuild atomically.
+  // Route segments are stored alongside place/pacing-block segments so the GET
+  // handler returns a complete, ordered segment list without a separate routes field.
+  const persistedDays = db.transaction((tx) => {
+    tx.delete(itineraryDays).where(eq(itineraryDays.tripId, tripId)).run();
 
-  const persistedDays: Array<{
-    date: string;
-    dayId: number;
-    segments: typeof itinerarySegments.$inferSelect[];
-    routes: Awaited<ReturnType<typeof computeDayRoutes>>;
-  }> = [];
+    const days: Array<{
+      date: string;
+      dayId: number;
+      segments: typeof itinerarySegments.$inferSelect[];
+    }> = [];
 
-  for (const day of realDays) {
-    const dayRow = db
-      .insert(itineraryDays)
-      .values({ tripId, date: day.date })
-      .returning()
-      .all()[0];
-
-    if (!dayRow) continue;
-
-    const segs: typeof itinerarySegments.$inferSelect[] = [];
-    for (const seg of day.segments) {
-      const inserted = db
-        .insert(itinerarySegments)
-        .values({
-          dayId: dayRow.id,
-          order: seg.order,
-          segmentType: seg.segmentType,
-          placeId: seg.placeId,
-          adjustmentState: seg.adjustmentState,
-          startTime: seg.startTime,
-          endTime: seg.endTime,
-          payload: seg.payload ?? {},
-        })
+    for (const day of realDays) {
+      const dayRow = tx
+        .insert(itineraryDays)
+        .values({ tripId, date: day.date })
         .returning()
         .all()[0];
-      if (inserted) segs.push(inserted);
+
+      if (!dayRow) continue;
+
+      const segs: typeof itinerarySegments.$inferSelect[] = [];
+
+      for (const seg of day.segments) {
+        const inserted = tx
+          .insert(itinerarySegments)
+          .values({
+            dayId: dayRow.id,
+            order: seg.order,
+            segmentType: seg.segmentType,
+            placeId: seg.placeId,
+            adjustmentState: seg.adjustmentState,
+            startTime: seg.startTime,
+            endTime: seg.endTime,
+            payload: seg.payload ?? {},
+          })
+          .returning()
+          .all()[0];
+        if (inserted) segs.push(inserted);
+      }
+
+      // Insert route segments immediately after each from-place segment.
+      // Route order = fromPlaceOrder + "0" sorts after the place but before the
+      // next scheduled segment (nap or next place).
+      const placeSegOrders = day.segments
+        .filter((s) => s.segmentType === "place")
+        .map((s) => s.order);
+
+      const dayRoutes = routesByDay.get(day.date) ?? [];
+      for (let ri = 0; ri < dayRoutes.length; ri++) {
+        const routeOrder = (placeSegOrders[ri] ?? "0") + "0";
+        const inserted = tx
+          .insert(itinerarySegments)
+          .values({
+            dayId: dayRow.id,
+            order: routeOrder,
+            segmentType: "route",
+            placeId: null,
+            adjustmentState: "scheduled",
+            startTime: null,
+            endTime: null,
+            payload: dayRoutes[ri] as Record<string, unknown>,
+          })
+          .returning()
+          .all()[0];
+        if (inserted) segs.push(inserted);
+      }
+
+      segs.sort((a, b) => (a.order < b.order ? -1 : 1));
+      days.push({ date: day.date, dayId: dayRow.id, segments: segs });
     }
 
-    persistedDays.push({
-      date: day.date,
-      dayId: dayRow.id,
-      segments: segs,
-      routes: routesByDay.get(day.date) ?? [],
-    });
-  }
+    return days;
+  });
 
   // Update trip status
   db.update(trips).set({ status: "ItineraryBuilt" }).where(eq(trips.id, tripId)).run();
@@ -184,6 +213,7 @@ export async function POST(request: Request) {
     days: persistedDays,
     overflow: overflowDay?.segments ?? [],
     neighborhood: neighborhood?.name ?? null,
+    status: "ItineraryBuilt",
   });
 }
 

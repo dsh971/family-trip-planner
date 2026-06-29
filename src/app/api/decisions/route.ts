@@ -14,7 +14,7 @@ import {
   derivePacingBudget,
 } from "@/services/discovery/detour";
 
-// GET /api/decisions?tripId=<id> — list all yes-decisions for a trip
+// GET /api/decisions?tripId=<id> — list all decisions (yes and no) for a trip
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const tripId = Number(searchParams.get("tripId"));

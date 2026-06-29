@@ -89,10 +89,10 @@ function datesBetween(startDate: string, endDate: string): string[] {
 
 // Determine how many eat and visit slots are available per day given pacing windows.
 // Convention:
-//   - morning window: 1 visit slot
-//   - afternoon window: 1 visit slot + 1 eat slot (lunch or dinner after sightseeing)
-//   - bedtime window contributes 1 eat slot (dinner)
+//   - morning window: 1 eat slot + 1 visit slot
+//   - afternoon window: 1 eat slot + 1 visit slot
 //   - nap window: pacing-block only, no activity slots
+//   - bedtime window: no slots (end-of-day marker)
 function slotsForWindows(pacingWindows: PacingWindow[]): { eat: number; visit: number } {
   let eat = 0;
   let visit = 0;
@@ -172,6 +172,24 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
     }
   }
 
+  // Insert nap pacing-block between eat and visit segments so the order-reassignment
+  // loop below places it correctly in the middle of the day.
+  const napWindow = input.pacingWindows.find((w) => w.name === "nap");
+  if (napWindow) {
+    for (const date of dates) {
+      const segs = dayMap.get(date)!;
+      segs.push({
+        order: generateFractionalOrder(segs.length, segs.length + 2),
+        segmentType: "pacing-block",
+        placeId: null,
+        adjustmentState: "scheduled",
+        startTime: napWindow.startTime,
+        endTime: napWindow.endTime,
+        payload: { windowName: "nap", label: "Nap / rest time" },
+      });
+    }
+  }
+
   // Fill visit slots
   for (const date of dates) {
     const segs = dayMap.get(date)!;
@@ -185,23 +203,6 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
         startTime: null,
         endTime: null,
         payload: { category: "visit", placeName: d.placeName, worthTheDetour: d.worthTheDetour },
-      });
-    }
-  }
-
-  // Insert pacing-block for nap window into each day
-  const napWindow = input.pacingWindows.find((w) => w.name === "nap");
-  if (napWindow) {
-    for (const date of dates) {
-      const segs = dayMap.get(date)!;
-      segs.push({
-        order: generateFractionalOrder(segs.length, segs.length + 2),
-        segmentType: "pacing-block",
-        placeId: null,
-        adjustmentState: "scheduled",
-        startTime: napWindow.startTime,
-        endTime: napWindow.endTime,
-        payload: { windowName: "nap", label: "Nap / rest time" },
       });
     }
   }

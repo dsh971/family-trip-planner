@@ -54,13 +54,13 @@ function PlaceCard({
   onDecide,
 }: {
   place: DiscoveryPlace;
-  onDecide: (placeId: string, action: "yes" | "no") => void;
+  onDecide: (placeId: string, action: "yes" | "no", worthTheDetour: boolean) => void;
 }) {
   const [decided, setDecided] = useState<"yes" | "no" | null>(null);
 
   function decide(action: "yes" | "no") {
     setDecided(action);
-    onDecide(place.placeId, action);
+    onDecide(place.placeId, action, place.worthTheDetour);
   }
 
   if (decided === "no") return null;
@@ -162,12 +162,12 @@ export default function DiscoveryPage() {
     }
   }, [tripId]);
 
-  function handleDecide(placeId: string, action: "yes" | "no") {
+  function handleDecide(placeId: string, action: "yes" | "no", worthTheDetour: boolean) {
     if (action !== "yes") return;
     fetch("/api/decisions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tripId, placeId, action: "yes" }),
+      body: JSON.stringify({ tripId, placeId, action: "yes", worthTheDetour }),
     }).catch((e) => console.error("[Decision] Failed to persist", e));
   }
 

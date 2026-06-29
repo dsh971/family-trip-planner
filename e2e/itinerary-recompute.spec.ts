@@ -33,6 +33,26 @@ const mockItineraryResponse = {
           payload: { category: "eat", placeName: "Musashino Ramen", worthTheDetour: false },
         },
         {
+          id: 5,
+          dayId: 1,
+          order: "a0",
+          segmentType: "route",
+          placeId: null,
+          adjustmentState: "scheduled",
+          startTime: null,
+          endTime: null,
+          payload: {
+            fromName: "Musashino Ramen",
+            toName: "Inokashira Park",
+            distanceMeters: 450,
+            walkingMinutes: 6,
+            safetyConcern: false,
+            safetyConcernName: null,
+            wgAvailable: true,
+            note: null,
+          },
+        },
+        {
           id: 2,
           dayId: 1,
           order: "b",
@@ -55,18 +75,6 @@ const mockItineraryResponse = {
           payload: { category: "visit", placeName: "Inokashira Park", worthTheDetour: false },
         },
       ],
-      routes: [
-        {
-          fromName: "Musashino Ramen",
-          toName: "Inokashira Park",
-          distanceMeters: 450,
-          walkingMinutes: 6,
-          safetyConcern: false,
-          safetyConcernName: null,
-          wgAvailable: true,
-          note: null,
-        },
-      ],
     },
     {
       date: "2025-07-11",
@@ -84,7 +92,6 @@ const mockItineraryResponse = {
           payload: { category: "visit", placeName: "Kichijoji Harmonica Alley", worthTheDetour: false },
         },
       ],
-      routes: [],
     },
   ],
   overflow: [],
@@ -198,23 +205,25 @@ test.describe("Itinerary page", () => {
   });
 
   test("shows safety concern badge on flagged routes", async ({ page }) => {
+    const safetyRoutePayload = {
+      fromName: "Musashino Ramen",
+      toName: "Inokashira Park",
+      distanceMeters: 2000,
+      walkingMinutes: 25,
+      safetyConcern: true,
+      safetyConcernName: "Roppongi",
+      wgAvailable: true,
+      note: null,
+    };
+    const day0 = mockItineraryResponse.days[0]!;
     const responseWithSafety = {
       ...mockItineraryResponse,
       days: [
         {
-          ...mockItineraryResponse.days[0]!,
-          routes: [
-            {
-              fromName: "Musashino Ramen",
-              toName: "Inokashira Park",
-              distanceMeters: 2000,
-              walkingMinutes: 25,
-              safetyConcern: true,
-              safetyConcernName: "Roppongi",
-              wgAvailable: true,
-              note: null,
-            },
-          ],
+          ...day0,
+          segments: day0.segments.map((s) =>
+            s.segmentType === "route" ? { ...s, payload: safetyRoutePayload } : s
+          ),
         },
         ...mockItineraryResponse.days.slice(1),
       ],

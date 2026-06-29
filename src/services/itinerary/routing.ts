@@ -63,16 +63,25 @@ export function routePassesThroughSafetyArea(
 
     if (geo.type !== "point") continue;
 
-    // Line-to-point distance: parametric t ∈ [0,1], closest point on segment
+    // Line-to-point distance: parametric t ∈ [0,1], closest point on segment.
+    // Scale lng by cos(midLat) so both axes are in comparable units before
+    // projecting — without this, 1° lng ≈ 91 km and 1° lat ≈ 111 km at 35°N,
+    // producing ~18% error in the closest-point position.
+    const midLat = (fromLat + toLat) / 2;
+    const cosLat = Math.cos((midLat * Math.PI) / 180);
     const dx = toLat - fromLat;
-    const dy = toLng - fromLng;
-    const lenSq = dx * dx + dy * dy;
+    const dLng = toLng - fromLng;
+    const cosLatSq = cosLat * cosLat;
+    const lenSq = dx * dx + cosLatSq * dLng * dLng;
     let t = 0;
     if (lenSq > 0) {
-      t = Math.max(0, Math.min(1, ((geo.lat - fromLat) * dx + (geo.lng - fromLng) * dy) / lenSq));
+      t = Math.max(
+        0,
+        Math.min(1, ((geo.lat - fromLat) * dx + cosLatSq * (geo.lng - fromLng) * dLng) / lenSq)
+      );
     }
     const closestLat = fromLat + t * dx;
-    const closestLng = fromLng + t * dy;
+    const closestLng = fromLng + t * dLng;
     const dist = haversineMeters(closestLat, closestLng, geo.lat, geo.lng);
 
     if (dist < SAFETY_CORRIDOR_METERS) {

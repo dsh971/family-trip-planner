@@ -30,7 +30,6 @@ interface DayResponse {
   date: string;
   dayId: number;
   segments: SegmentRow[];
-  routes?: RouteResult[];
 }
 
 interface ItineraryResponse {
@@ -112,22 +111,6 @@ function PacingBlockSegment({ seg }: { seg: SegmentRow }) {
 
 function DayCard({ day }: { day: DayResponse }) {
   const placeSegments = day.segments.filter((s) => s.segmentType === "place");
-  const routes = day.routes ?? [];
-
-  // Interleave segments with route pills
-  const interleaved: Array<{ type: "segment" | "route"; item: SegmentRow | RouteResult }> = [];
-  let routeIdx = 0;
-  for (let i = 0; i < day.segments.length; i++) {
-    const seg = day.segments[i]!;
-    interleaved.push({ type: "segment", item: seg });
-    if (seg.segmentType === "place" && routes[routeIdx] && i < day.segments.length - 1) {
-      const nextPlace = day.segments.slice(i + 1).find((s) => s.segmentType === "place");
-      if (nextPlace) {
-        interleaved.push({ type: "route", item: routes[routeIdx]! });
-        routeIdx++;
-      }
-    }
-  }
 
   return (
     <div className="mb-6">
@@ -135,17 +118,11 @@ function DayCard({ day }: { day: DayResponse }) {
         {formatDate(day.date)}
       </h2>
       <div className="flex flex-col gap-2">
-        {interleaved.map((entry, i) =>
-          entry.type === "segment" ? (
-            (entry.item as SegmentRow).segmentType === "pacing-block" ? (
-              <PacingBlockSegment key={`seg-${i}`} seg={entry.item as SegmentRow} />
-            ) : (
-              <PlaceSegment key={`seg-${i}`} seg={entry.item as SegmentRow} />
-            )
-          ) : (
-            <RoutePill key={`route-${i}`} route={entry.item as RouteResult} />
-          )
-        )}
+        {day.segments.map((seg, i) => {
+          if (seg.segmentType === "pacing-block") return <PacingBlockSegment key={i} seg={seg} />;
+          if (seg.segmentType === "route") return <RoutePill key={i} route={seg.payload as RouteResult} />;
+          return <PlaceSegment key={i} seg={seg} />;
+        })}
         {placeSegments.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-4">No places scheduled for this day.</p>
         )}
