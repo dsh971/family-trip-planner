@@ -50,8 +50,9 @@ export interface WGRouteViewResult {
   from: WGAnchor;
   to: WGAnchor;
   buffer_meters: number;
-  distance_meters: number;
-  walking_minutes: number;
+  distance_meters: number | null;
+  // null when route involves ferry/transit segment WG can't time
+  walking_minutes: number | null;
   // null until sync-city hydrates local OSM store
   along_route: null;
   note: string;
