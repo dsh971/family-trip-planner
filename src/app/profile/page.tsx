@@ -2,6 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  Input,
+  Button,
+  Alert,
+  DatePicker,
+} from "@sumiui/react";
 
 interface PacingWindow {
   name: string;
@@ -25,8 +34,8 @@ export default function ProfilePage() {
   ]);
   const [hotelName, setHotelName] = useState("");
   const [hotelAddress, setHotelAddress] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState<string | undefined>(undefined);
+  const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,7 +45,6 @@ export default function ProfilePage() {
     setSubmitting(true);
 
     try {
-      // Step 1: create profile
       const profileRes = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -57,15 +65,14 @@ export default function ProfilePage() {
 
       const profile = await profileRes.json() as { id: number };
 
-      // Step 2: create trip
       const tripRes = await fetch("/api/trips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           familyProfileId: profile.id,
-          destinationId: 1, // Tokyo is always destination 1 in v1
-          startDate,
-          endDate,
+          destinationId: 1,
+          startDate: startDate ?? "",
+          endDate: endDate ?? "",
           hotelName: hotelName || undefined,
           hotelAddress: hotelAddress || undefined,
         }),
@@ -87,201 +94,207 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Set Up Your Tokyo Trip</h1>
-      <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-6">
-        <section>
-          <h2 className="text-lg font-semibold mb-3">Family Composition</h2>
-          <label className="block mb-2">
-            Adults
-            <input
+    <main className="max-w-2xl mx-auto p-6 pt-6 space-y-4">
+      <h1
+        className="text-3xl font-semibold tracking-tight mb-2"
+        style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+      >
+        Set Up Your Tokyo Trip
+      </h1>
+
+      <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+        {/* Family Composition */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Family Composition</h2>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            <Input
+              label="Adults"
               type="number"
               min={1}
-              value={adultCount}
+              value={String(adultCount)}
               onChange={(e) => setAdultCount(Number(e.target.value))}
-              className="ml-2 border rounded px-2 py-1 w-16"
+              className="w-24"
             />
-          </label>
-          <div>
-            <p className="mb-1">Children (ages)</p>
-            {children.map((child, i) => (
-              <label key={i} className="block mb-1">
-                Child {i + 1} age:
-                <input
-                  type="number"
-                  min={0}
-                  max={17}
-                  value={child.age}
-                  onChange={(e) => {
-                    const updated = [...children];
-                    updated[i] = { age: Number(e.target.value) };
-                    setChildren(updated);
-                  }}
-                  className="ml-2 border rounded px-2 py-1 w-16"
-                />
-                <button
-                  type="button"
-                  onClick={() => setChildren(children.filter((_, j) => j !== i))}
-                  className="ml-2 text-red-600 text-sm"
-                >
-                  Remove
-                </button>
-              </label>
-            ))}
-            <button
-              type="button"
-              onClick={() => setChildren([...children, { age: 0 }])}
-              className="text-blue-600 text-sm mt-1"
-            >
-              + Add child
-            </button>
-          </div>
-        </section>
+            <div className="space-y-2">
+              <p className="text-sm font-medium" style={{ color: "var(--fg-2)" }}>Children (ages)</p>
+              {children.map((child, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Input
+                    label={`Child ${i + 1} age`}
+                    type="number"
+                    min={0}
+                    max={17}
+                    value={String(child.age)}
+                    onChange={(e) => {
+                      const updated = [...children];
+                      updated[i] = { age: Number(e.target.value) };
+                      setChildren(updated);
+                    }}
+                    className="w-24"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setChildren(children.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setChildren([...children, { age: 0 }])}
+              >
+                + Add child
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
 
-        <section>
-          <h2 className="text-lg font-semibold mb-3">Needs</h2>
-          <label className="block mb-2">
-            Dietary tags (comma-separated)
-            <input
-              type="text"
+        {/* Needs */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Needs</h2>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            <Input
+              label="Dietary tags (comma-separated)"
               value={dietaryTags}
               onChange={(e) => setDietaryTags(e.target.value)}
               placeholder="e.g. vegetarian, nut-allergy"
-              className="block w-full border rounded px-2 py-1 mt-1"
             />
-          </label>
-          <label className="block">
-            Accessibility needs (comma-separated)
-            <input
-              type="text"
+            <Input
+              label="Accessibility needs (comma-separated)"
               value={accessibilityTags}
               onChange={(e) => setAccessibilityTags(e.target.value)}
               placeholder="e.g. stroller, wheelchair"
-              className="block w-full border rounded px-2 py-1 mt-1"
             />
-          </label>
-        </section>
+          </CardBody>
+        </Card>
 
-        <section>
-          <h2 className="text-lg font-semibold mb-3">Daily Pacing Blocks</h2>
-          {pacingWindows.map((w, i) => (
-            <div key={i} className="flex items-center gap-2 mb-2">
-              <input
-                type="text"
-                value={w.name}
-                onChange={(e) => {
-                  const updated = [...pacingWindows];
-                  updated[i] = { ...w, name: e.target.value };
-                  setPacingWindows(updated);
-                }}
-                placeholder="name"
-                className="border rounded px-2 py-1 w-24"
-              />
-              <input
-                type="time"
-                value={w.startTime}
-                onChange={(e) => {
-                  const updated = [...pacingWindows];
-                  updated[i] = { ...w, startTime: e.target.value };
-                  setPacingWindows(updated);
-                }}
-                className="border rounded px-2 py-1"
-              />
-              <span>–</span>
-              <input
-                type="time"
-                value={w.endTime}
-                onChange={(e) => {
-                  const updated = [...pacingWindows];
-                  updated[i] = { ...w, endTime: e.target.value };
-                  setPacingWindows(updated);
-                }}
-                className="border rounded px-2 py-1"
-              />
-              <button
-                type="button"
-                onClick={() => setPacingWindows(pacingWindows.filter((_, j) => j !== i))}
-                className="text-red-600 text-sm"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setPacingWindows([...pacingWindows, { name: "", startTime: "12:00", endTime: "13:00" }])}
-            className="text-blue-600 text-sm"
-          >
-            + Add pacing block
-          </button>
-        </section>
+        {/* Pacing Blocks */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Daily Pacing Blocks</h2>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            {pacingWindows.map((w, i) => (
+              <div key={i} className="flex items-center gap-2 flex-wrap">
+                <Input
+                  label="Name"
+                  value={w.name}
+                  onChange={(e) => {
+                    const updated = [...pacingWindows];
+                    updated[i] = { ...w, name: e.target.value };
+                    setPacingWindows(updated);
+                  }}
+                  placeholder="name"
+                  className="w-28"
+                />
+                <Input
+                  label="Start"
+                  type="time"
+                  value={w.startTime}
+                  onChange={(e) => {
+                    const updated = [...pacingWindows];
+                    updated[i] = { ...w, startTime: e.target.value };
+                    setPacingWindows(updated);
+                  }}
+                  className="w-32"
+                />
+                <Input
+                  label="End"
+                  type="time"
+                  value={w.endTime}
+                  onChange={(e) => {
+                    const updated = [...pacingWindows];
+                    updated[i] = { ...w, endTime: e.target.value };
+                    setPacingWindows(updated);
+                  }}
+                  className="w-32"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPacingWindows(pacingWindows.filter((_, j) => j !== i))}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setPacingWindows([...pacingWindows, { name: "", startTime: "12:00", endTime: "13:00" }])}
+            >
+              + Add pacing block
+            </Button>
+          </CardBody>
+        </Card>
 
-        <section>
-          <h2 className="text-lg font-semibold mb-3">Trip Dates</h2>
-          <div className="flex gap-4">
-            <label>
-              Start date
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-                className="block border rounded px-2 py-1 mt-1"
-              />
-            </label>
-            <label>
-              End date
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-                className="block border rounded px-2 py-1 mt-1"
-              />
-            </label>
-          </div>
-        </section>
+        {/* Trip Dates */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Trip Dates</h2>
+          </CardHeader>
+          <CardBody className="flex gap-4 flex-wrap">
+            <DatePicker
+              label="Start date"
+              value={startDate ?? ""}
+              onChange={(v) => setStartDate(v || undefined)}
+            />
+            <DatePicker
+              label="End date"
+              value={endDate ?? ""}
+              onChange={(v) => setEndDate(v || undefined)}
+            />
+          </CardBody>
+        </Card>
 
-        <section>
-          <h2 className="text-lg font-semibold mb-3">
-            Pre-Booked Hotel{" "}
-            <span className="text-sm font-normal text-gray-500">(optional — improves itinerary accuracy)</span>
-          </h2>
-          <label className="block mb-2">
-            Hotel name
-            <input
-              type="text"
+        {/* Hotel */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>
+              Pre-Booked Hotel{" "}
+              <span className="font-normal" style={{ color: "var(--fg-3)" }}>(optional)</span>
+            </h2>
+          </CardHeader>
+          <CardBody className="space-y-3">
+            <Input
+              label="Hotel name"
               value={hotelName}
               onChange={(e) => setHotelName(e.target.value)}
               placeholder="e.g. Park Hyatt Tokyo"
-              className="block w-full border rounded px-2 py-1 mt-1"
             />
-          </label>
-          <label className="block">
-            Hotel address
-            <input
-              type="text"
+            <Input
+              label="Hotel address"
               value={hotelAddress}
               onChange={(e) => setHotelAddress(e.target.value)}
-              placeholder="e.g. 3-7-1-2 Nishi Shinjuku, Shinjuku"
-              className="block w-full border rounded px-2 py-1 mt-1"
+              placeholder="e.g. 3-7-1-2 Nishi Shinjuku"
             />
-          </label>
-        </section>
+          </CardBody>
+        </Card>
 
         {error && (
-          <div className="bg-red-50 border border-red-300 text-red-700 rounded p-3 text-sm">
-            {error}
-          </div>
+          <Alert variant="danger">{error}</Alert>
         )}
 
-        <button
+        <Button
           type="submit"
-          disabled={submitting}
-          className="w-full bg-blue-600 text-white rounded px-4 py-2 font-semibold disabled:opacity-50"
+          variant="primary"
+          size="lg"
+          loading={submitting}
+          className="w-full"
         >
           {submitting ? "Setting up your trip…" : "Start Planning"}
-        </button>
+        </Button>
       </form>
     </main>
   );
