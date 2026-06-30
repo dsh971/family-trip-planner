@@ -125,7 +125,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto p-6 pt-6 pb-24 space-y-4">
+    <main className="max-w-2xl mx-auto px-6 pt-[3.5rem] pb-24 space-y-4">
       <div className="mb-2">
         <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
           Tokyo, Japan

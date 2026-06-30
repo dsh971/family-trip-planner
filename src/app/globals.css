@@ -23,3 +23,13 @@ body {
     display: none;
   }
 }
+
+/*
+  Sumi's primary button applies bg-accent + text-[color:var(--fg-on-malachite)].
+  The text utility is inside @layer utilities, so it loses to the unlayered CSS cascade
+  in some rendering paths (Next.js <Link> asChild, browser resets). This unlayered rule
+  forces correct on-accent text for any element carrying bg-accent.
+*/
+.bg-accent {
+  color: var(--fg-on-malachite);
+}
