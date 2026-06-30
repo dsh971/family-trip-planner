@@ -2,6 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import {
+  Timeline,
+  Button,
+  Badge,
+  Skeleton,
+  Alert,
+  EmptyState,
+} from "@sumiui/react";
+import type { TimelineItemData } from "@sumiui/react";
 
 interface RouteResult {
   fromName: string;
@@ -45,88 +54,73 @@ function formatDate(isoDate: string): string {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function RoutePill({ route }: { route: RouteResult }) {
-  const label = route.walkingMinutes !== null
-    ? `${route.walkingMinutes} min walk`
-    : "Route unavailable";
-
-  return (
-    <div
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border mx-auto w-fit ${
-        route.safetyConcern
-          ? "bg-amber-50 border-amber-300 text-amber-800"
-          : "bg-gray-50 border-gray-200 text-gray-500"
-      }`}
-    >
-      <span className="text-gray-400">↓</span>
-      <span>{label}</span>
-      {route.safetyConcern && (
-        <span className="font-semibold text-amber-700">⚠ {route.safetyConcernName}</span>
-      )}
-    </div>
-  );
-}
-
-function PlaceSegment({ seg }: { seg: SegmentRow }) {
-  const name = seg.payload?.["placeName"] as string | undefined;
-  const category = seg.payload?.["category"] as string | undefined;
-  const isDetour = seg.payload?.["worthTheDetour"] === true;
-
-  return (
-    <div
-      className={`rounded-lg border px-4 py-3 bg-white ${
-        isDetour ? "border-l-4 border-l-violet-400 border-gray-200" : "border-gray-200"
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <p className="font-medium text-sm text-gray-900">{name ?? "—"}</p>
-        <span
-          className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-            category === "eat"
-              ? "bg-orange-100 text-orange-700"
-              : "bg-purple-100 text-purple-700"
-          }`}
-        >
-          {category === "eat" ? "Eat" : "Visit"}
+function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData {
+  if (seg.segmentType === "place") {
+    const name = seg.payload?.["placeName"] as string | undefined;
+    const category = seg.payload?.["category"] as string | undefined;
+    const isDetour = seg.payload?.["worthTheDetour"] === true;
+    return {
+      id: String(seg.id),
+      time: seg.startTime ?? undefined,
+      marker: "dot-ok",
+      title: (
+        <span className="flex items-center gap-2">
+          <span>{name ?? "—"}</span>
+          <Badge variant={category === "eat" ? "warning" : "info"}>
+            {category === "eat" ? "Eat" : "Visit"}
+          </Badge>
+          {isDetour && <Badge variant="neutral">Detour</Badge>}
         </span>
-      </div>
-      {isDetour && (
-        <p className="text-xs text-violet-600 mt-0.5">Worth the detour</p>
-      )}
-    </div>
-  );
+      ),
+    };
+  }
+
+  if (seg.segmentType === "pacing-block") {
+    const label = seg.payload?.["label"] as string | undefined;
+    const time = (seg.startTime && seg.endTime) ? `${seg.startTime} – ${seg.endTime}` : undefined;
+    return {
+      id: String(seg.id),
+      time,
+      marker: "dot-pending",
+      title: label ?? "Rest",
+      description: "Pacing block",
+    };
+  }
+
+  // route
+  const route = seg.payload as unknown as RouteResult | null;
+  const label = route?.walkingMinutes != null
+    ? `${route.walkingMinutes} min walk`
+    : "Route";
+  return {
+    id: `route-${index}`,
+    marker: route?.safetyConcern ? "dot-warn" : "dot-hollow",
+    title: label,
+    description: route?.safetyConcern
+      ? `Safety note: ${route.safetyConcernName ?? "check area"}`
+      : [route?.fromName, route?.toName].filter(Boolean).join(" → ") || undefined,
+  };
 }
 
-function PacingBlockSegment({ seg }: { seg: SegmentRow }) {
-  const label = seg.payload?.["label"] as string | undefined;
-  return (
-    <div className="rounded-lg border border-dashed border-gray-200 px-4 py-2 bg-gray-50 text-center">
-      <p className="text-xs text-gray-400 font-medium">{label ?? "Rest"}</p>
-      {seg.startTime && (
-        <p className="text-xs text-gray-300 mt-0.5">{seg.startTime} – {seg.endTime}</p>
-      )}
-    </div>
-  );
-}
-
-function DayCard({ day }: { day: DayResponse }) {
-  const placeSegments = day.segments.filter((s) => s.segmentType === "place");
+function DaySection({ day }: { day: DayResponse }) {
+  const items: TimelineItemData[] = day.segments.map(segmentToTimelineItem);
+  const hasPlaces = day.segments.some((s) => s.segmentType === "place");
 
   return (
-    <div className="mb-6">
-      <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-3">
+    <div className="mb-8">
+      <h2
+        className="text-xs font-semibold uppercase tracking-widest mb-4"
+        style={{ color: "var(--fg-3)" }}
+      >
         {formatDate(day.date)}
       </h2>
-      <div className="flex flex-col gap-2">
-        {day.segments.map((seg, i) => {
-          if (seg.segmentType === "pacing-block") return <PacingBlockSegment key={i} seg={seg} />;
-          if (seg.segmentType === "route") return <RoutePill key={i} route={seg.payload as unknown as RouteResult} />;
-          return <PlaceSegment key={i} seg={seg} />;
-        })}
-        {placeSegments.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-4">No places scheduled for this day.</p>
-        )}
-      </div>
+      {hasPlaces ? (
+        <Timeline items={items} timeGutter />
+      ) : (
+        <p className="text-sm" style={{ color: "var(--fg-3)" }}>
+          No places scheduled for this day.
+        </p>
+      )}
     </div>
   );
 }
@@ -184,61 +178,78 @@ export default function ItineraryPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">Your Itinerary</h1>
-      {data?.neighborhood && (
-        <p className="text-sm text-gray-500 mb-4">{data.neighborhood}</p>
+    <main className="max-w-lg mx-auto p-4 space-y-4">
+      <div>
+        <h1
+          className="text-2xl font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        >
+          Itinerary
+        </h1>
+        {data?.neighborhood && (
+          <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
+            {data.neighborhood}
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <Alert variant="danger">
+          {error}
+          <Button variant="ghost" size="sm" className="ml-2" onClick={() => { void buildItinerary(); }}>
+            Retry
+          </Button>
+        </Alert>
       )}
 
       {(state === "idle" || state === "done") && (
-        <button
-          onClick={buildItinerary}
+        <Button
+          variant="primary"
+          className="w-full"
           data-testid="build-itinerary-btn"
-          className="w-full mb-4 py-2.5 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 transition-colors"
+          onClick={() => { void buildItinerary(); }}
         >
           {state === "done" ? "Recompute itinerary" : "Build itinerary"}
-        </button>
+        </Button>
       )}
 
       {state === "loading" && (
-        <div className="text-center py-12 text-gray-400 text-sm">Loading itinerary…</div>
-      )}
-
-      {state === "building" && (
-        <div className="text-center py-12 text-gray-500">
-          <div className="inline-block w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3" />
-          <p className="text-sm">Building your itinerary…</p>
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((n) => <Skeleton key={n} height="4rem" />)}
         </div>
       )}
 
-      {state === "error" && (
-        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-          {error}
-          <button onClick={buildItinerary} className="ml-2 underline text-red-600">
-            Retry
-          </button>
+      {state === "building" && (
+        <div className="space-y-3">
+          <p className="text-sm text-center" style={{ color: "var(--fg-2)" }}>
+            Building your itinerary…
+          </p>
+          {[1, 2, 3, 4].map((n) => <Skeleton key={n} height="4rem" />)}
         </div>
       )}
 
       {state === "done" && data && (
         <>
-          <div data-testid="itinerary-days">
-            {data.days.map((day) => (
-              <DayCard key={day.date} day={day} />
-            ))}
-          </div>
+          {data.days.length === 0 ? (
+            <EmptyState
+              title="No days scheduled"
+              description="Add places in Discovery then build your itinerary."
+            />
+          ) : (
+            <div data-testid="itinerary-days">
+              {data.days.map((day) => (
+                <DaySection key={day.date} day={day} />
+              ))}
+            </div>
+          )}
 
           {data.overflow && data.overflow.length > 0 && (
-            <div className="mt-4 border-t border-gray-200 pt-4">
-              <h2 className="text-sm font-semibold text-gray-500 mb-2">Didn&apos;t fit</h2>
-              <div className="flex flex-col gap-2">
-                {data.overflow.map((seg, i) => (
-                  <div key={i} className="border border-dashed border-gray-200 rounded-lg px-3 py-2 bg-white">
-                    <p className="text-xs text-gray-500">{(seg.payload?.["placeName"] as string) ?? "Place"}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Alert variant="warning">
+              {data.overflow.length} place{data.overflow.length !== 1 ? "s" : ""} didn&apos;t fit in the schedule:{" "}
+              {data.overflow
+                .map((seg) => (seg.payload?.["placeName"] as string) ?? "Place")
+                .join(", ")}
+            </Alert>
           )}
         </>
       )}
