@@ -120,7 +120,7 @@ function DayCard({ day }: { day: DayResponse }) {
       <div className="flex flex-col gap-2">
         {day.segments.map((seg, i) => {
           if (seg.segmentType === "pacing-block") return <PacingBlockSegment key={i} seg={seg} />;
-          if (seg.segmentType === "route") return <RoutePill key={i} route={seg.payload as RouteResult} />;
+          if (seg.segmentType === "route") return <RoutePill key={i} route={seg.payload as unknown as RouteResult} />;
           return <PlaceSegment key={i} seg={seg} />;
         })}
         {placeSegments.length === 0 && (
