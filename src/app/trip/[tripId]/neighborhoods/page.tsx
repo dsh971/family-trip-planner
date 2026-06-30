@@ -2,6 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import {
+  Card,
+  CardHeader,
+  CardBody,
+  CardFooter,
+  Button,
+  Badge,
+  Alert,
+  Skeleton,
+  EmptyState,
+} from "@sumiui/react";
 
 interface DayInTheLifePreview {
   highlights: string[];
@@ -24,6 +35,7 @@ export default function NeighborhoodsPage() {
   const router = useRouter();
   const [neighborhoods, setNeighborhoods] = useState<RankedNeighborhood[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +55,7 @@ export default function NeighborhoodsPage() {
 
   async function handleSelect(neighborhoodId: number) {
     setSelected(neighborhoodId);
+    setSubmitting(neighborhoodId);
     const res = await fetch("/api/neighborhoods", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -50,58 +63,117 @@ export default function NeighborhoodsPage() {
     });
     if (!res.ok) {
       setError("Failed to select neighborhood");
+      setSubmitting(null);
       return;
     }
     router.push(`/trip/${tripId}/discovery`);
   }
 
-  if (loading) return <main className="max-w-2xl mx-auto p-6">Loading neighborhoods…</main>;
-  if (error) return <main className="max-w-2xl mx-auto p-6 text-red-600">{error}</main>;
+  if (loading) {
+    return (
+      <main className="max-w-2xl mx-auto p-4 pt-6 space-y-4">
+        <Skeleton height="2rem" width="14rem" />
+        <Skeleton height="1rem" width="20rem" />
+        {[1, 2, 3].map((n) => (
+          <Skeleton key={n} height="12rem" />
+        ))}
+      </main>
+    );
+  }
+
+  if (error) {
+    return (
+      <main className="max-w-2xl mx-auto p-4 pt-6">
+        <Alert variant="danger">{error}</Alert>
+      </main>
+    );
+  }
+
+  if (neighborhoods.length === 0) {
+    return (
+      <main className="max-w-2xl mx-auto p-4 pt-6">
+        <EmptyState title="No neighborhoods found" description="No neighborhood data is available for this destination." />
+      </main>
+    );
+  }
 
   return (
-    <main className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-2">Choose Your Tokyo Base</h1>
-      <p className="text-gray-600 mb-6">
-        These neighborhoods are ranked for family-friendliness. Pick one as your base area for the trip.
-      </p>
-      <div className="space-y-4">
+    <main className="max-w-2xl mx-auto p-4 pt-6 space-y-4">
+      <div>
+        <h1
+          className="text-2xl font-semibold tracking-tight"
+          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        >
+          Choose Your Tokyo Base
+        </h1>
+        <p className="text-sm mt-1" style={{ color: "var(--fg-2)" }}>
+          Ranked by family-friendliness. Pick one as your base area.
+        </p>
+      </div>
+
+      <div className="space-y-3">
         {neighborhoods.map((nb, i) => (
-          <div
+          <Card
             key={nb.id}
-            className={`border rounded-lg p-4 ${selected === nb.id ? "border-blue-500 bg-blue-50" : "border-gray-200"}`}
+            style={
+              selected === nb.id
+                ? { borderColor: "var(--accent)", background: "var(--bg-1)" }
+                : {}
+            }
           >
-            <div className="flex justify-between items-start mb-2">
-              <div>
-                <span className="text-xs text-gray-400 font-medium mr-2">#{i + 1}</span>
-                <span className="font-semibold text-lg">{nb.name}</span>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className="text-xs font-semibold tabular-nums w-5 text-center"
+                  style={{ color: "var(--fg-3)" }}
+                >
+                  #{i + 1}
+                </span>
+                <span
+                  className="text-base font-semibold"
+                  style={{ color: "var(--fg-1)" }}
+                >
+                  {nb.name}
+                </span>
                 {nb.safetyPenalty > 0 && (
-                  <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 rounded px-1 py-0.5">
+                  <Badge variant="warning">
                     Near flagged area
-                  </span>
+                  </Badge>
                 )}
               </div>
-              <button
-                onClick={() => { void handleSelect(nb.id); }}
-                className="bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium"
+            </CardHeader>
+            <CardBody className="space-y-2">
+              <ul
+                className="text-sm space-y-0.5 list-disc list-inside"
+                style={{ color: "var(--fg-2)" }}
               >
-                Select
-              </button>
-            </div>
-            <div className="text-sm text-gray-700 space-y-1">
-              <p className="font-medium">Highlights:</p>
-              <ul className="list-disc list-inside ml-2">
                 {nb.dayInTheLifePreview.highlights.map((h, j) => (
                   <li key={j}>{h}</li>
                 ))}
               </ul>
-              <p className="mt-2">
-                <span className="font-medium">Sample day:</span> {nb.dayInTheLifePreview.sampleBundle}
+              <p className="text-sm" style={{ color: "var(--fg-2)" }}>
+                <span className="font-medium" style={{ color: "var(--fg-1)" }}>
+                  Sample day:{" "}
+                </span>
+                {nb.dayInTheLifePreview.sampleBundle}
               </p>
               {nb.dayInTheLifePreview.safetyNote && (
-                <p className="text-gray-500 text-xs mt-1">ℹ {nb.dayInTheLifePreview.safetyNote}</p>
+                <p className="text-xs" style={{ color: "var(--fg-3)" }}>
+                  {nb.dayInTheLifePreview.safetyNote}
+                </p>
               )}
-            </div>
-          </div>
+            </CardBody>
+            <CardFooter>
+              <Button
+                variant="primary"
+                size="sm"
+                loading={submitting === nb.id}
+                onClick={() => { void handleSelect(nb.id); }}
+              >
+                Select as base
+              </Button>
+            </CardFooter>
+          </Card>
         ))}
       </div>
     </main>
