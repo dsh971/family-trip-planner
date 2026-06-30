@@ -51,7 +51,10 @@ export function BottomNav({ tripId }: BottomNavProps) {
             key={item.href}
             href={item.href}
             className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 text-xs font-medium transition-colors"
-            style={{ color: active ? "var(--accent)" : "var(--fg-3)" }}
+            style={{
+              color: active ? "var(--accent)" : "var(--fg-3)",
+              borderTop: active ? "2px solid var(--accent)" : "2px solid transparent",
+            }}
           >
             {item.icon}
             <span>{item.label}</span>

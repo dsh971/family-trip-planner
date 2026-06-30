@@ -1,8 +1,25 @@
-@import "tailwindcss";
+/*
+  Sumi UI bundles a complete Tailwind v4 instance in its CSS (imported via
+  `@sumiui/react/styles` in layout.tsx). We use @source here so that
+  Tailwind's already-loaded engine also scans our own source files for
+  utility classes — without re-importing the full Tailwind bundle (which
+  would create a second @layer theme block and conflict with Sumi's tokens).
+*/
+@source "../**/*.{ts,tsx}";
 
 body {
   background: var(--bg-0);
   color: var(--fg-1);
   font-family: var(--font-body);
   min-height: 100vh;
+}
+
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

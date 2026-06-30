@@ -4,13 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
-  CardHeader,
   CardBody,
   Input,
   Button,
   Alert,
   DatePicker,
 } from "@sumiui/react";
+import { Users, Heart, Clock, CalendarDays, Building2 } from "lucide-react";
 
 interface PacingWindow {
   name: string;
@@ -20,6 +20,37 @@ interface PacingWindow {
 
 interface Child {
   age: number;
+}
+
+function SectionHeader({
+  num,
+  icon,
+  title,
+}: {
+  num: number;
+  icon: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 mb-3">
+      <span
+        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+        style={{
+          background: "var(--accent)",
+          color: "var(--fg-on-malachite)",
+        }}
+      >
+        {num}
+      </span>
+      <span style={{ color: "var(--accent)" }}>{icon}</span>
+      <h2
+        className="text-base font-semibold tracking-tight"
+        style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+      >
+        {title}
+      </h2>
+    </div>
+  );
 }
 
 export default function ProfilePage() {
@@ -94,21 +125,24 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto p-6 pt-6 space-y-4">
-      <h1
-        className="text-3xl font-semibold tracking-tight mb-2"
-        style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
-      >
-        Set Up Your Tokyo Trip
-      </h1>
+    <main className="max-w-2xl mx-auto p-6 pt-6 pb-24 space-y-4">
+      <div className="mb-2">
+        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
+          Tokyo, Japan
+        </p>
+        <h1
+          className="text-3xl font-bold tracking-tight"
+          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        >
+          Set Up Your Trip
+        </h1>
+      </div>
 
       <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
-        {/* Family Composition */}
+        {/* 1. Family Composition */}
         <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Family Composition</h2>
-          </CardHeader>
           <CardBody className="space-y-3">
+            <SectionHeader num={1} icon={<Users size={16} />} title="Family Composition" />
             <Input
               label="Adults"
               type="number"
@@ -156,12 +190,10 @@ export default function ProfilePage() {
           </CardBody>
         </Card>
 
-        {/* Needs */}
+        {/* 2. Needs */}
         <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Needs</h2>
-          </CardHeader>
           <CardBody className="space-y-3">
+            <SectionHeader num={2} icon={<Heart size={16} />} title="Dietary & Accessibility Needs" />
             <Input
               label="Dietary tags (comma-separated)"
               value={dietaryTags}
@@ -177,12 +209,10 @@ export default function ProfilePage() {
           </CardBody>
         </Card>
 
-        {/* Pacing Blocks */}
+        {/* 3. Pacing Blocks */}
         <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Daily Pacing Blocks</h2>
-          </CardHeader>
           <CardBody className="space-y-3">
+            <SectionHeader num={3} icon={<Clock size={16} />} title="Daily Pacing Blocks" />
             {pacingWindows.map((w, i) => (
               <div key={i} className="flex items-center gap-2 flex-wrap">
                 <Input
@@ -239,34 +269,30 @@ export default function ProfilePage() {
           </CardBody>
         </Card>
 
-        {/* Trip Dates */}
+        {/* 4. Trip Dates */}
         <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>Trip Dates</h2>
-          </CardHeader>
-          <CardBody className="flex gap-4 flex-wrap">
-            <DatePicker
-              label="Start date"
-              value={startDate ?? ""}
-              onChange={(v) => setStartDate(v || undefined)}
-            />
-            <DatePicker
-              label="End date"
-              value={endDate ?? ""}
-              onChange={(v) => setEndDate(v || undefined)}
-            />
+          <CardBody className="space-y-3">
+            <SectionHeader num={4} icon={<CalendarDays size={16} />} title="Trip Dates" />
+            <div className="flex gap-4 flex-wrap">
+              <DatePicker
+                label="Start date"
+                value={startDate ?? ""}
+                onChange={(v) => setStartDate(v || undefined)}
+              />
+              <DatePicker
+                label="End date"
+                value={endDate ?? ""}
+                onChange={(v) => setEndDate(v || undefined)}
+              />
+            </div>
           </CardBody>
         </Card>
 
-        {/* Hotel */}
+        {/* 5. Hotel */}
         <Card>
-          <CardHeader>
-            <h2 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>
-              Pre-Booked Hotel{" "}
-              <span className="font-normal" style={{ color: "var(--fg-3)" }}>(optional)</span>
-            </h2>
-          </CardHeader>
           <CardBody className="space-y-3">
+            <SectionHeader num={5} icon={<Building2 size={16} />} title="Pre-Booked Hotel" />
+            <p className="text-xs" style={{ color: "var(--fg-3)" }}>Optional — helps us optimize your walking routes.</p>
             <Input
               label="Hotel name"
               value={hotelName}
@@ -285,17 +311,31 @@ export default function ProfilePage() {
         {error && (
           <Alert variant="danger">{error}</Alert>
         )}
-
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          loading={submitting}
-          className="w-full"
-        >
-          {submitting ? "Setting up your trip…" : "Start Planning"}
-        </Button>
       </form>
+
+      {/* Sticky submit CTA */}
+      <div
+        className="fixed bottom-0 left-0 right-0 p-4 z-40"
+        style={{ background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
+      >
+        <div className="max-w-2xl mx-auto">
+          <Button
+            type="submit"
+            form=""
+            variant="primary"
+            size="lg"
+            loading={submitting}
+            className="w-full"
+            onClick={(e) => {
+              e.preventDefault();
+              const form = document.querySelector("form");
+              form?.requestSubmit();
+            }}
+          >
+            {submitting ? "Setting up your trip…" : "Start Planning"}
+          </Button>
+        </div>
+      </div>
     </main>
   );
 }

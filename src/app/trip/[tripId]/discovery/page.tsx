@@ -10,11 +10,8 @@ import {
   Skeleton,
   Alert,
   EmptyState,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
 } from "@sumiui/react";
+import { CheckCircle2 } from "lucide-react";
 
 interface DiscoveryPlace {
   placeId: string;
@@ -43,6 +40,14 @@ interface DiscoveryResponse {
   wgAvailable: boolean;
 }
 
+type FilterValue = "all" | "eat" | "visit";
+
+const PILL_FILTERS: { label: string; value: FilterValue }[] = [
+  { label: "All", value: "all" },
+  { label: "Eat", value: "eat" },
+  { label: "Visit", value: "visit" },
+];
+
 function PriceDots({ level }: { level: number | null }) {
   if (level === null) return null;
   return (
@@ -69,15 +74,26 @@ function PlaceCard({
 
   if (decided === "no") return null;
 
+  const categoryColor =
+    place.category === "eat"
+      ? "var(--status-warning-bg, #fef3c7)"
+      : "var(--status-info-bg, #dbeafe)";
+
   return (
-    <Card style={decided === "yes" ? { borderColor: "var(--success, #4ade80)" } : {}}>
-      <CardBody className="space-y-2">
+    <Card style={decided === "yes" ? { borderColor: "var(--accent)" } : {}}>
+      {/* Category color band */}
+      <div
+        className="h-1 w-full rounded-t-lg"
+        style={{ background: categoryColor }}
+        aria-hidden="true"
+      />
+      <CardBody className="space-y-2 pt-2">
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-semibold" style={{ color: "var(--fg-1)" }}>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold truncate" style={{ color: "var(--fg-1)" }}>
               {place.name}
             </h3>
-            <p className="text-xs mt-0.5" style={{ color: "var(--fg-3)" }}>
+            <p className="text-xs mt-0.5 truncate" style={{ color: "var(--fg-3)" }}>
               {place.types.slice(0, 2).join(" · ")}
             </p>
           </div>
@@ -116,16 +132,19 @@ function PlaceCard({
         {decided !== "yes" ? (
           <div className="flex gap-2 pt-1">
             <Button variant="primary" size="sm" className="flex-1" onClick={() => decide("yes")}>
-              Add
+              Add to list
             </Button>
             <Button variant="ghost" size="sm" className="flex-1" onClick={() => decide("no")}>
               Skip
             </Button>
           </div>
         ) : (
-          <p className="text-xs font-medium" style={{ color: "var(--success, #16a34a)" }}>
-            Added to trip
-          </p>
+          <div className="flex items-center gap-1.5 pt-1">
+            <CheckCircle2 size={14} style={{ color: "var(--accent)" }} />
+            <p className="text-xs font-medium" style={{ color: "var(--accent)" }}>
+              Added to your list
+            </p>
+          </div>
         )}
       </CardBody>
     </Card>
@@ -139,7 +158,7 @@ export default function DiscoveryPage() {
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [data, setData] = useState<DiscoveryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"eat" | "visit">("eat");
+  const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
 
   const runDiscovery = useCallback(async () => {
     setState("loading");
@@ -172,7 +191,8 @@ export default function DiscoveryPage() {
     }).catch((e) => console.error("[Decision] Failed to persist", e));
   }
 
-  const visiblePlaces = data?.results.filter((p) => p.category === activeTab) ?? [];
+  const visiblePlaces =
+    data?.results.filter((p) => activeFilter === "all" || p.category === activeFilter) ?? [];
   const countEat = data?.results.filter((p) => p.category === "eat").length ?? 0;
   const countVisit = data?.results.filter((p) => p.category === "visit").length ?? 0;
 
@@ -180,7 +200,7 @@ export default function DiscoveryPage() {
     <main className="max-w-lg mx-auto p-4 space-y-4">
       <div>
         <h1
-          className="text-2xl font-semibold tracking-tight"
+          className="text-2xl font-bold tracking-tight"
           style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
         >
           Discover Places
@@ -221,28 +241,50 @@ export default function DiscoveryPage() {
             </Alert>
           )}
 
-          <Tabs
-            value={activeTab}
-            onValueChange={(v) => setActiveTab(v as "eat" | "visit")}
+          {/* Pill filters */}
+          <div
+            className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+            role="group"
+            aria-label="Filter places by category"
           >
-            <TabsList>
-              <TabsTrigger value="eat">Eat ({countEat})</TabsTrigger>
-              <TabsTrigger value="visit">Visit ({countVisit})</TabsTrigger>
-            </TabsList>
+            {PILL_FILTERS.map((pill) => {
+              const active = activeFilter === pill.value;
+              const count =
+                pill.value === "all"
+                  ? (data?.results.length ?? 0)
+                  : pill.value === "eat"
+                    ? countEat
+                    : countVisit;
+              return (
+                <button
+                  key={pill.value}
+                  aria-pressed={active}
+                  onClick={() => setActiveFilter(pill.value)}
+                  className="rounded-full px-4 py-3 text-sm font-medium shrink-0 transition-colors"
+                  style={{
+                    background: active ? "var(--accent)" : "transparent",
+                    color: active ? "var(--fg-on-malachite)" : "var(--fg-2)",
+                    border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
+                  }}
+                >
+                  {pill.label} ({count})
+                </button>
+              );
+            })}
+          </div>
 
-            <TabsContent value={activeTab} className="mt-3 space-y-3">
-              {visiblePlaces.length === 0 ? (
-                <EmptyState
-                  title="No places yet"
-                  description="Nothing found in this category."
-                />
-              ) : (
-                visiblePlaces.map((place) => (
-                  <PlaceCard key={place.placeId} place={place} onDecide={handleDecide} />
-                ))
-              )}
-            </TabsContent>
-          </Tabs>
+          <div className="space-y-3">
+            {visiblePlaces.length === 0 ? (
+              <EmptyState
+                title="No places yet"
+                description="Nothing found in this category."
+              />
+            ) : (
+              visiblePlaces.map((place) => (
+                <PlaceCard key={place.placeId} place={place} onDecide={handleDecide} />
+              ))
+            )}
+          </div>
 
           <Button variant="secondary" className="w-full" onClick={() => { void runDiscovery(); }}>
             Refresh results

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
   Card,
   CardBody,
@@ -10,10 +11,6 @@ import {
   Skeleton,
   Alert,
   EmptyState,
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
 } from "@sumiui/react";
 
 interface DecisionRow {
@@ -35,6 +32,13 @@ interface DecisionsResponse {
   decisions: DecisionRow[];
 }
 
+type FilterValue = "eat" | "visit";
+
+const PILL_FILTERS: { label: string; value: FilterValue }[] = [
+  { label: "Eat", value: "eat" },
+  { label: "Visit", value: "visit" },
+];
+
 export default function DecisionsPage() {
   const params = useParams<{ tripId: string }>();
   const tripId = Number(params.tripId);
@@ -42,7 +46,7 @@ export default function DecisionsPage() {
   const [decisions, setDecisions] = useState<DecisionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"eat" | "visit">("eat");
+  const [activeFilter, setActiveFilter] = useState<FilterValue>("eat");
 
   const loadDecisions = useCallback(async () => {
     try {
@@ -76,20 +80,35 @@ export default function DecisionsPage() {
 
   const countEat = decisions.filter((d) => d.category === "eat").length;
   const countVisit = decisions.filter((d) => d.category === "visit").length;
-  const filtered = decisions.filter((d) => d.category === activeTab);
+  const filtered = decisions.filter((d) => d.category === activeFilter);
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
+    <main className="max-w-lg mx-auto p-4 space-y-4 pb-24">
       <div>
         <h1
-          className="text-2xl font-semibold tracking-tight"
+          className="text-2xl font-bold tracking-tight"
           style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
         >
           My Trip List
         </h1>
-        <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
-          Places you&apos;ve added
-        </p>
+
+        {/* Stat chips */}
+        {decisions.length > 0 && (
+          <div className="flex gap-2 mt-2">
+            <span
+              className="rounded-full px-3 py-1 text-sm"
+              style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
+            >
+              <span aria-hidden="true">🍜 </span>{countEat} restaurant{countEat !== 1 ? "s" : ""}
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-sm"
+              style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
+            >
+              <span aria-hidden="true">🏛 </span>{countVisit} {countVisit !== 1 ? "activities" : "activity"}
+            </span>
+          </div>
+        )}
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -99,25 +118,49 @@ export default function DecisionsPage() {
           {[1, 2, 3].map((n) => <Skeleton key={n} height="5rem" />)}
         </div>
       ) : (
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as "eat" | "visit")}
-        >
-          <TabsList>
-            <TabsTrigger value="eat">Eat ({countEat})</TabsTrigger>
-            <TabsTrigger value="visit">Visit ({countVisit})</TabsTrigger>
-          </TabsList>
+        <>
+          {/* Pill filters */}
+          <div
+            className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+            role="group"
+            aria-label="Filter by category"
+          >
+            {PILL_FILTERS.map((pill) => {
+              const active = activeFilter === pill.value;
+              const count = pill.value === "eat" ? countEat : countVisit;
+              return (
+                <button
+                  key={pill.value}
+                  aria-pressed={active}
+                  onClick={() => setActiveFilter(pill.value)}
+                  className="rounded-full px-4 py-3 text-sm font-medium shrink-0 transition-colors"
+                  style={{
+                    background: active ? "var(--accent)" : "transparent",
+                    color: active ? "var(--fg-on-malachite)" : "var(--fg-2)",
+                    border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
+                  }}
+                >
+                  {pill.label} ({count})
+                </button>
+              );
+            })}
+          </div>
 
-          <TabsContent value={activeTab} className="mt-3 space-y-3">
+          <div className="space-y-3">
             {filtered.length === 0 ? (
               <EmptyState
-                title={`No ${activeTab === "eat" ? "restaurants" : "activities"} yet`}
+                title={`No ${activeFilter === "eat" ? "restaurants" : "activities"} yet`}
                 description="Go to Discovery to add places."
               />
             ) : (
               <>
                 {filtered.map((d) => (
-                  <Card key={d.id}>
+                  <Card
+                    key={d.id}
+                    style={{
+                      borderLeft: `4px solid ${d.category === "eat" ? "var(--status-warning, #f59e0b)" : "var(--status-info, #3b82f6)"}`,
+                    }}
+                  >
                     <CardBody className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <p
@@ -158,12 +201,21 @@ export default function DecisionsPage() {
                   className="text-xs text-center pt-2"
                   style={{ color: "var(--fg-3)", borderTop: "1px solid var(--line-1)" }}
                 >
-                  {filtered.length} {activeTab === "eat" ? "restaurant" : "activity"}{filtered.length !== 1 ? "s" : ""} selected
+                  {filtered.length} {activeFilter === "eat" ? "restaurant" : "activity"}{filtered.length !== 1 ? "s" : ""} selected
                 </p>
               </>
             )}
-          </TabsContent>
-        </Tabs>
+          </div>
+
+          {/* Build itinerary CTA */}
+          {decisions.length > 0 && (
+            <Button variant="primary" size="lg" className="w-full" asChild>
+              <Link href={`/trip/${params.tripId}/itinerary`}>
+                Build itinerary →
+              </Link>
+            </Button>
+          )}
+        </>
       )}
     </main>
   );
