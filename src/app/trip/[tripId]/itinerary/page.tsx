@@ -2,6 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import {
+  Timeline,
+  Button,
+  Badge,
+  Skeleton,
+  Alert,
+  EmptyState,
+} from "@sumiui/react";
+import type { TimelineItemData } from "@sumiui/react";
+import { Utensils, MapPin } from "lucide-react";
 
 interface RouteResult {
   fromName: string;
@@ -40,93 +50,109 @@ interface ItineraryResponse {
   status?: string;
 }
 
+function formatDayPill(isoDate: string, index: number): string {
+  const d = new Date(isoDate + "T00:00:00Z");
+  const month = d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return `Day ${index + 1} · ${month}`;
+}
+
 function formatDate(isoDate: string): string {
   const d = new Date(isoDate + "T00:00:00Z");
   return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-function RoutePill({ route }: { route: RouteResult }) {
-  const label = route.walkingMinutes !== null
-    ? `${route.walkingMinutes} min walk`
-    : "Route unavailable";
-
-  return (
-    <div
-      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs border mx-auto w-fit ${
-        route.safetyConcern
-          ? "bg-amber-50 border-amber-300 text-amber-800"
-          : "bg-gray-50 border-gray-200 text-gray-500"
-      }`}
-    >
-      <span className="text-gray-400">↓</span>
-      <span>{label}</span>
-      {route.safetyConcern && (
-        <span className="font-semibold text-amber-700">⚠ {route.safetyConcernName}</span>
-      )}
-    </div>
-  );
-}
-
-function PlaceSegment({ seg }: { seg: SegmentRow }) {
-  const name = seg.payload?.["placeName"] as string | undefined;
-  const category = seg.payload?.["category"] as string | undefined;
-  const isDetour = seg.payload?.["worthTheDetour"] === true;
-
-  return (
-    <div
-      className={`rounded-lg border px-4 py-3 bg-white ${
-        isDetour ? "border-l-4 border-l-violet-400 border-gray-200" : "border-gray-200"
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <p className="font-medium text-sm text-gray-900">{name ?? "—"}</p>
-        <span
-          className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-            category === "eat"
-              ? "bg-orange-100 text-orange-700"
-              : "bg-purple-100 text-purple-700"
-          }`}
-        >
-          {category === "eat" ? "Eat" : "Visit"}
+function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData {
+  if (seg.segmentType === "place") {
+    const name = seg.payload?.["placeName"] as string | undefined;
+    const category = seg.payload?.["category"] as string | undefined;
+    const isDetour = seg.payload?.["worthTheDetour"] === true;
+    return {
+      id: String(seg.id),
+      time: seg.startTime ?? undefined,
+      marker: "dot-ok",
+      title: (
+        <span className="flex items-center gap-2">
+          <span
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{ background: "var(--bg-2)" }}
+            aria-hidden="true"
+          >
+            {category === "eat" ? (
+              <Utensils size={14} style={{ color: "var(--fg-2)" }} />
+            ) : (
+              <MapPin size={14} style={{ color: "var(--fg-2)" }} />
+            )}
+          </span>
+          <span>{name ?? "—"}</span>
+          <Badge variant={category === "eat" ? "warning" : "info"}>
+            {category === "eat" ? "Eat" : "Visit"}
+          </Badge>
+          {isDetour && <Badge variant="neutral">Detour</Badge>}
         </span>
-      </div>
-      {isDetour && (
-        <p className="text-xs text-violet-600 mt-0.5">Worth the detour</p>
-      )}
-    </div>
-  );
+      ),
+    };
+  }
+
+  if (seg.segmentType === "pacing-block") {
+    const label = seg.payload?.["label"] as string | undefined;
+    const time = (seg.startTime && seg.endTime) ? `${seg.startTime} – ${seg.endTime}` : undefined;
+    return {
+      id: String(seg.id),
+      time,
+      marker: "dot-pending",
+      title: label ?? "Rest",
+      description: "Pacing block",
+    };
+  }
+
+  // route
+  const route = seg.payload as unknown as RouteResult | null;
+  const label = route?.walkingMinutes != null
+    ? `${route.walkingMinutes} min walk`
+    : "Route";
+  return {
+    id: `route-${index}`,
+    marker: route?.safetyConcern ? "dot-warn" : "dot-hollow",
+    title: label,
+    description: route?.safetyConcern
+      ? `Safety note: ${route.safetyConcernName ?? "check area"}`
+      : [route?.fromName, route?.toName].filter(Boolean).join(" → ") || undefined,
+  };
 }
 
-function PacingBlockSegment({ seg }: { seg: SegmentRow }) {
-  const label = seg.payload?.["label"] as string | undefined;
-  return (
-    <div className="rounded-lg border border-dashed border-gray-200 px-4 py-2 bg-gray-50 text-center">
-      <p className="text-xs text-gray-400 font-medium">{label ?? "Rest"}</p>
-      {seg.startTime && (
-        <p className="text-xs text-gray-300 mt-0.5">{seg.startTime} – {seg.endTime}</p>
-      )}
-    </div>
-  );
-}
+function DaySection({ day }: { day: DayResponse }) {
+  const items: TimelineItemData[] = day.segments.map(segmentToTimelineItem);
+  const hasPlaces = day.segments.some((s) => s.segmentType === "place");
 
-function DayCard({ day }: { day: DayResponse }) {
-  const placeSegments = day.segments.filter((s) => s.segmentType === "place");
+  const placeCount = day.segments.filter((s) => s.segmentType === "place").length;
+  const walkMinutes = day.segments
+    .filter((s) => s.segmentType === "route")
+    .reduce((sum, s) => {
+      const route = s.payload as unknown as RouteResult | null;
+      return sum + (route?.walkingMinutes ?? 0);
+    }, 0);
 
   return (
-    <div className="mb-6">
-      <h2 className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-3">
-        {formatDate(day.date)}
-      </h2>
-      <div className="flex flex-col gap-2">
-        {day.segments.map((seg, i) => {
-          if (seg.segmentType === "pacing-block") return <PacingBlockSegment key={i} seg={seg} />;
-          if (seg.segmentType === "route") return <RoutePill key={i} route={seg.payload as RouteResult} />;
-          return <PlaceSegment key={i} seg={seg} />;
-        })}
-        {placeSegments.length === 0 && (
-          <p className="text-sm text-gray-400 text-center py-4">No places scheduled for this day.</p>
-        )}
+    <div className="mb-8" id={day.date}>
+      <div className="flex items-center justify-between mb-4">
+        <h2
+          className="text-xs font-semibold uppercase tracking-widest"
+          style={{ color: "var(--fg-3)" }}
+        >
+          {formatDate(day.date)}
+        </h2>
+        <div className="flex items-center gap-3 text-xs" style={{ color: "var(--fg-3)" }}>
+          {placeCount > 0 && <span>{placeCount} place{placeCount !== 1 ? "s" : ""}</span>}
+          {walkMinutes > 0 && <span>{walkMinutes} min walk</span>}
+        </div>
       </div>
+      {hasPlaces ? (
+        <Timeline items={items} timeGutter />
+      ) : (
+        <p className="text-sm" style={{ color: "var(--fg-3)" }}>
+          No places scheduled for this day.
+        </p>
+      )}
     </div>
   );
 }
@@ -138,6 +164,7 @@ export default function ItineraryPage() {
   const [state, setState] = useState<"idle" | "loading" | "building" | "done" | "error">("idle");
   const [data, setData] = useState<ItineraryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeDay, setActiveDay] = useState<string | null>(null);
 
   const loadItinerary = useCallback(async () => {
     setState("loading");
@@ -149,6 +176,7 @@ export default function ItineraryPage() {
         setState("idle");
       } else {
         setData(json);
+        setActiveDay(json.days[0]?.date ?? null);
         setState("done");
       }
     } catch (err) {
@@ -176,6 +204,7 @@ export default function ItineraryPage() {
       }
       const json = await res.json() as ItineraryResponse;
       setData(json);
+      setActiveDay(json.days[0]?.date ?? null);
       setState("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -183,62 +212,112 @@ export default function ItineraryPage() {
     }
   }
 
+  function scrollToDay(date: string) {
+    setActiveDay(date);
+    document.getElementById(date)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
-    <main className="min-h-screen bg-gray-50 p-4 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">Your Itinerary</h1>
-      {data?.neighborhood && (
-        <p className="text-sm text-gray-500 mb-4">{data.neighborhood}</p>
+    <main className="max-w-lg mx-auto p-4 space-y-4">
+      <div>
+        <h1
+          className="text-2xl font-bold tracking-tight"
+          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        >
+          Itinerary
+        </h1>
+        {data?.neighborhood && (
+          <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
+            {data.neighborhood}
+          </p>
+        )}
+      </div>
+
+      {error && (
+        <Alert variant="danger">
+          {error}
+          <Button variant="ghost" size="sm" className="ml-2" onClick={() => { void buildItinerary(); }}>
+            Retry
+          </Button>
+        </Alert>
       )}
 
       {(state === "idle" || state === "done") && (
-        <button
-          onClick={buildItinerary}
+        <Button
+          variant="primary"
+          className="w-full"
           data-testid="build-itinerary-btn"
-          className="w-full mb-4 py-2.5 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 transition-colors"
+          onClick={() => { void buildItinerary(); }}
         >
           {state === "done" ? "Recompute itinerary" : "Build itinerary"}
-        </button>
+        </Button>
       )}
 
       {state === "loading" && (
-        <div className="text-center py-12 text-gray-400 text-sm">Loading itinerary…</div>
-      )}
-
-      {state === "building" && (
-        <div className="text-center py-12 text-gray-500">
-          <div className="inline-block w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-3" />
-          <p className="text-sm">Building your itinerary…</p>
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((n) => <Skeleton key={n} height="4rem" />)}
         </div>
       )}
 
-      {state === "error" && (
-        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-          {error}
-          <button onClick={buildItinerary} className="ml-2 underline text-red-600">
-            Retry
-          </button>
+      {state === "building" && (
+        <div className="space-y-3">
+          <p className="text-sm text-center" style={{ color: "var(--fg-2)" }}>
+            Building your itinerary…
+          </p>
+          {[1, 2, 3, 4].map((n) => <Skeleton key={n} height="4rem" />)}
         </div>
       )}
 
       {state === "done" && data && (
         <>
-          <div data-testid="itinerary-days">
-            {data.days.map((day) => (
-              <DayCard key={day.date} day={day} />
-            ))}
-          </div>
+          {data.days.length === 0 ? (
+            <EmptyState
+              title="No days scheduled"
+              description="Add places in Discovery then build your itinerary."
+            />
+          ) : (
+            <>
+              {/* Day-switcher pill row */}
+              <div
+                className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+                role="group"
+                aria-label="Jump to day"
+              >
+                {data.days.map((day, i) => {
+                  const active = activeDay === day.date;
+                  return (
+                    <button
+                      key={day.date}
+                      aria-pressed={active}
+                      onClick={() => scrollToDay(day.date)}
+                      className="rounded-full px-4 py-2 text-sm font-medium shrink-0 transition-colors"
+                      style={{
+                        background: active ? "var(--accent)" : "transparent",
+                        color: active ? "var(--fg-on-malachite)" : "var(--fg-2)",
+                        border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
+                      }}
+                    >
+                      {formatDayPill(day.date, i)}
+                    </button>
+                  );
+                })}
+              </div>
 
-          {data.overflow && data.overflow.length > 0 && (
-            <div className="mt-4 border-t border-gray-200 pt-4">
-              <h2 className="text-sm font-semibold text-gray-500 mb-2">Didn&apos;t fit</h2>
-              <div className="flex flex-col gap-2">
-                {data.overflow.map((seg, i) => (
-                  <div key={i} className="border border-dashed border-gray-200 rounded-lg px-3 py-2 bg-white">
-                    <p className="text-xs text-gray-500">{(seg.payload?.["placeName"] as string) ?? "Place"}</p>
-                  </div>
+              <div data-testid="itinerary-days">
+                {data.days.map((day) => (
+                  <DaySection key={day.date} day={day} />
                 ))}
               </div>
-            </div>
+            </>
+          )}
+
+          {data.overflow && data.overflow.length > 0 && (
+            <Alert variant="warning">
+              {data.overflow.length} place{data.overflow.length !== 1 ? "s" : ""} didn&apos;t fit in the schedule:{" "}
+              {data.overflow
+                .map((seg) => (seg.payload?.["placeName"] as string) ?? "Place")
+                .join(", ")}
+            </Alert>
           )}
         </>
       )}

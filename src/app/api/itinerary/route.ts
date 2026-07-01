@@ -189,7 +189,7 @@ export async function POST(request: Request) {
             adjustmentState: "scheduled",
             startTime: null,
             endTime: null,
-            payload: dayRoutes[ri] as Record<string, unknown>,
+            payload: dayRoutes[ri] as unknown as Record<string, unknown>,
           })
           .returning()
           .all()[0];

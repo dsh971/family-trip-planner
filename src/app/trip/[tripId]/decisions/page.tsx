@@ -2,6 +2,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
+import {
+  Card,
+  CardBody,
+  Button,
+  Badge,
+  Skeleton,
+  Alert,
+  EmptyState,
+} from "@sumiui/react";
 
 interface DecisionRow {
   id: number;
@@ -22,23 +32,12 @@ interface DecisionsResponse {
   decisions: DecisionRow[];
 }
 
-function PriceDots({ level }: { level: number | null }) {
-  if (level === null) return null;
-  return (
-    <span className="text-xs text-gray-500">
-      {"$".repeat(level)}
-    </span>
-  );
-}
+type FilterValue = "eat" | "visit";
 
-function EmptyState({ tab }: { tab: "eat" | "visit" }) {
-  return (
-    <div className="text-center py-12 text-gray-400">
-      <p className="text-sm">No {tab === "eat" ? "restaurants" : "activities"} added yet.</p>
-      <p className="text-xs mt-1">Go to Discovery to add places.</p>
-    </div>
-  );
-}
+const PILL_FILTERS: { label: string; value: FilterValue }[] = [
+  { label: "Eat", value: "eat" },
+  { label: "Visit", value: "visit" },
+];
 
 export default function DecisionsPage() {
   const params = useParams<{ tripId: string }>();
@@ -47,7 +46,7 @@ export default function DecisionsPage() {
   const [decisions, setDecisions] = useState<DecisionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"eat" | "visit">("eat");
+  const [activeFilter, setActiveFilter] = useState<FilterValue>("eat");
 
   const loadDecisions = useCallback(async () => {
     try {
@@ -69,99 +68,154 @@ export default function DecisionsPage() {
   async function removeDecision(googlePlaceId: string) {
     const optimistic = decisions.filter((d) => d.placeGoogleId !== googlePlaceId);
     setDecisions(optimistic);
-
     try {
       const res = await fetch(`/api/decisions?tripId=${tripId}&placeId=${encodeURIComponent(googlePlaceId)}`, {
         method: "DELETE",
       });
-      if (!res.ok) {
-        // Rollback on failure
-        await loadDecisions();
-      }
+      if (!res.ok) await loadDecisions();
     } catch {
       await loadDecisions();
     }
   }
 
-  const filtered = decisions.filter((d) => d.category === activeTab);
+  const countEat = decisions.filter((d) => d.category === "eat").length;
+  const countVisit = decisions.filter((d) => d.category === "visit").length;
+  const filtered = decisions.filter((d) => d.category === activeFilter);
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">Your Trip List</h1>
-      <p className="text-sm text-gray-500 mb-4">Places you&apos;ve added to the trip</p>
+    <main className="max-w-lg mx-auto p-4 space-y-4 pb-24">
+      <div>
+        <h1
+          className="text-2xl font-bold tracking-tight"
+          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        >
+          My Trip List
+        </h1>
 
-      {error && (
-        <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
-        {(["eat", "visit"] as const).map((tab) => {
-          const count = decisions.filter((d) => d.category === tab).length;
-          return (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-1.5 text-sm rounded-md font-medium transition-colors ${
-                activeTab === tab
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
+        {/* Stat chips */}
+        {decisions.length > 0 && (
+          <div className="flex gap-2 mt-2">
+            <span
+              className="rounded-full px-3 py-1 text-sm"
+              style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
             >
-              {tab === "eat" ? "Eat" : "Visit"}{" "}
-              <span className="text-xs text-gray-400">({count})</span>
-            </button>
-          );
-        })}
+              <span aria-hidden="true">🍜 </span>{countEat} restaurant{countEat !== 1 ? "s" : ""}
+            </span>
+            <span
+              className="rounded-full px-3 py-1 text-sm"
+              style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
+            >
+              <span aria-hidden="true">🏛 </span>{countVisit} {countVisit !== 1 ? "activities" : "activity"}
+            </span>
+          </div>
+        )}
       </div>
 
-      {loading ? (
-        <div className="text-center py-12 text-gray-400 text-sm">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <EmptyState tab={activeTab} />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {filtered.map((d) => (
-            <div
-              key={d.id}
-              className={`border rounded-lg p-4 bg-white flex items-start justify-between gap-3 ${
-                d.worthTheDetour ? "border-l-4 border-l-violet-400" : "border-gray-200"
-              }`}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 text-sm truncate">{d.placeName ?? "—"}</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {d.rating !== null && (
-                    <span className="text-xs text-gray-500 flex items-center gap-0.5">
-                      <span className="text-yellow-500">★</span>
-                      {d.rating.toFixed(1)}
-                    </span>
-                  )}
-                  <PriceDots level={d.priceLevel} />
-                  {d.worthTheDetour && (
-                    <span className="text-xs px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded font-medium">
-                      Detour
-                    </span>
-                  )}
-                </div>
-              </div>
-              <button
-                onClick={() => d.placeGoogleId && void removeDecision(d.placeGoogleId)}
-                className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0 mt-0.5"
-                aria-label={`Remove ${d.placeName ?? "place"}`}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {error && <Alert variant="danger">{error}</Alert>}
 
-      {!loading && filtered.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400 text-center">
-          {filtered.length} {activeTab === "eat" ? "restaurant" : "activity"}{filtered.length > 1 ? "s" : ""} selected
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((n) => <Skeleton key={n} height="5rem" />)}
         </div>
+      ) : (
+        <>
+          {/* Pill filters */}
+          <div
+            className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+            role="group"
+            aria-label="Filter by category"
+          >
+            {PILL_FILTERS.map((pill) => {
+              const active = activeFilter === pill.value;
+              const count = pill.value === "eat" ? countEat : countVisit;
+              return (
+                <button
+                  key={pill.value}
+                  aria-pressed={active}
+                  onClick={() => setActiveFilter(pill.value)}
+                  className="rounded-full px-4 py-3 text-sm font-medium shrink-0 transition-colors"
+                  style={{
+                    background: active ? "var(--accent)" : "transparent",
+                    color: active ? "var(--fg-on-malachite)" : "var(--fg-2)",
+                    border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
+                  }}
+                >
+                  {pill.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="space-y-3">
+            {filtered.length === 0 ? (
+              <EmptyState
+                title={`No ${activeFilter === "eat" ? "restaurants" : "activities"} yet`}
+                description="Go to Discovery to add places."
+              />
+            ) : (
+              <>
+                {filtered.map((d) => (
+                  <Card
+                    key={d.id}
+                    style={{
+                      borderLeft: `4px solid ${d.category === "eat" ? "var(--status-warning, #f59e0b)" : "var(--status-info, #3b82f6)"}`,
+                    }}
+                  >
+                    <CardBody className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="font-semibold text-sm truncate"
+                          style={{ color: "var(--fg-1)" }}
+                        >
+                          {d.placeName ?? "—"}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          {d.rating !== null && (
+                            <span className="text-xs flex items-center gap-0.5" style={{ color: "var(--fg-2)" }}>
+                              <span className="text-yellow-500">★</span>
+                              {d.rating.toFixed(1)}
+                            </span>
+                          )}
+                          {d.priceLevel !== null && (
+                            <span className="text-xs" style={{ color: "var(--fg-2)" }}>
+                              {"$".repeat(d.priceLevel)}
+                            </span>
+                          )}
+                          {d.worthTheDetour && (
+                            <Badge variant="neutral">Detour</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Remove ${d.placeName ?? "place"}`}
+                        onClick={() => d.placeGoogleId && void removeDecision(d.placeGoogleId)}
+                      >
+                        ✕
+                      </Button>
+                    </CardBody>
+                  </Card>
+                ))}
+                <p
+                  className="text-xs text-center pt-2"
+                  style={{ color: "var(--fg-3)", borderTop: "1px solid var(--line-1)" }}
+                >
+                  {filtered.length} {activeFilter === "eat" ? "restaurant" : "activity"}{filtered.length !== 1 ? "s" : ""} selected
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Build itinerary CTA */}
+          {decisions.length > 0 && (
+            <Button variant="primary" size="lg" className="w-full" asChild>
+              <Link href={`/trip/${params.tripId}/itinerary`}>
+                Build itinerary →
+              </Link>
+            </Button>
+          )}
+        </>
       )}
     </main>
   );
