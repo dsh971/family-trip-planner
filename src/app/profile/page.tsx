@@ -125,54 +125,138 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-6 pt-[3.5rem] pb-24 space-y-4">
-      <div className="mb-2">
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
-          Tokyo, Japan
-        </p>
-        <h1
-          className="text-3xl font-bold tracking-tight"
-          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
-        >
-          Set Up Your Trip
-        </h1>
-      </div>
+    <>
+      {/* Spacer for fixed AppHeader (h-11 = 44px) — same pattern as home page */}
+      <div className="h-11" aria-hidden="true" />
 
-      <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
-        {/* 1. Family Composition */}
-        <Card>
-          <CardBody className="space-y-3">
-            <SectionHeader num={1} icon={<Users size={16} />} title="Family Composition" />
-            <Input
-              label="Adults"
-              type="number"
-              min={1}
-              value={String(adultCount)}
-              onChange={(e) => setAdultCount(Number(e.target.value))}
-              className="w-24"
-            />
-            <div className="space-y-2">
-              <p className="text-sm font-medium" style={{ color: "var(--fg-2)" }}>Children (ages)</p>
-              {children.map((child, i) => (
-                <div key={i} className="flex items-center gap-2">
+      <main className="max-w-2xl mx-auto w-full px-6 pt-4 pb-28 space-y-4">
+        <div className="mb-2">
+          <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
+            Tokyo, Japan
+          </p>
+          <h1
+            className="text-3xl font-bold tracking-tight"
+            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+          >
+            Set Up Your Trip
+          </h1>
+        </div>
+
+        <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+          {/* 1. Family Composition */}
+          <Card>
+            <CardBody className="space-y-3">
+              <SectionHeader num={1} icon={<Users size={16} />} title="Family Composition" />
+              <Input
+                label="Adults"
+                type="number"
+                min={1}
+                value={String(adultCount)}
+                onChange={(e) => setAdultCount(Number(e.target.value))}
+                className="w-24"
+              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium" style={{ color: "var(--fg-2)" }}>Children (ages)</p>
+                {children.map((child, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      label={`Child ${i + 1} age`}
+                      type="number"
+                      min={0}
+                      max={17}
+                      value={String(child.age)}
+                      onChange={(e) => {
+                        const updated = [...children];
+                        updated[i] = { age: Number(e.target.value) };
+                        setChildren(updated);
+                      }}
+                      className="w-24"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setChildren(children.filter((_, j) => j !== i))}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setChildren([...children, { age: 0 }])}
+                >
+                  + Add child
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* 2. Needs */}
+          <Card>
+            <CardBody className="space-y-3">
+              <SectionHeader num={2} icon={<Heart size={16} />} title="Dietary & Accessibility Needs" />
+              <Input
+                label="Dietary tags (comma-separated)"
+                value={dietaryTags}
+                onChange={(e) => setDietaryTags(e.target.value)}
+                placeholder="e.g. vegetarian, nut-allergy"
+              />
+              <Input
+                label="Accessibility needs (comma-separated)"
+                value={accessibilityTags}
+                onChange={(e) => setAccessibilityTags(e.target.value)}
+                placeholder="e.g. stroller, wheelchair"
+              />
+            </CardBody>
+          </Card>
+
+          {/* 3. Pacing Blocks */}
+          <Card>
+            <CardBody className="space-y-3">
+              <SectionHeader num={3} icon={<Clock size={16} />} title="Daily Pacing Blocks" />
+              {pacingWindows.map((w, i) => (
+                <div key={i} className="flex items-center gap-2 flex-wrap">
                   <Input
-                    label={`Child ${i + 1} age`}
-                    type="number"
-                    min={0}
-                    max={17}
-                    value={String(child.age)}
+                    label="Name"
+                    value={w.name}
                     onChange={(e) => {
-                      const updated = [...children];
-                      updated[i] = { age: Number(e.target.value) };
-                      setChildren(updated);
+                      const updated = [...pacingWindows];
+                      updated[i] = { ...w, name: e.target.value };
+                      setPacingWindows(updated);
                     }}
-                    className="w-24"
+                    placeholder="name"
+                    className="w-28"
+                  />
+                  <Input
+                    label="Start"
+                    type="time"
+                    value={w.startTime}
+                    onChange={(e) => {
+                      const updated = [...pacingWindows];
+                      updated[i] = { ...w, startTime: e.target.value };
+                      setPacingWindows(updated);
+                    }}
+                    className="w-32"
+                  />
+                  <Input
+                    label="End"
+                    type="time"
+                    value={w.endTime}
+                    onChange={(e) => {
+                      const updated = [...pacingWindows];
+                      updated[i] = { ...w, endTime: e.target.value };
+                      setPacingWindows(updated);
+                    }}
+                    className="w-32"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setChildren(children.filter((_, j) => j !== i))}
+                    onClick={() => setPacingWindows(pacingWindows.filter((_, j) => j !== i))}
                   >
                     Remove
                   </Button>
@@ -182,138 +266,59 @@ export default function ProfilePage() {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setChildren([...children, { age: 0 }])}
+                onClick={() => setPacingWindows([...pacingWindows, { name: "", startTime: "12:00", endTime: "13:00" }])}
               >
-                + Add child
+                + Add pacing block
               </Button>
-            </div>
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
 
-        {/* 2. Needs */}
-        <Card>
-          <CardBody className="space-y-3">
-            <SectionHeader num={2} icon={<Heart size={16} />} title="Dietary & Accessibility Needs" />
-            <Input
-              label="Dietary tags (comma-separated)"
-              value={dietaryTags}
-              onChange={(e) => setDietaryTags(e.target.value)}
-              placeholder="e.g. vegetarian, nut-allergy"
-            />
-            <Input
-              label="Accessibility needs (comma-separated)"
-              value={accessibilityTags}
-              onChange={(e) => setAccessibilityTags(e.target.value)}
-              placeholder="e.g. stroller, wheelchair"
-            />
-          </CardBody>
-        </Card>
-
-        {/* 3. Pacing Blocks */}
-        <Card>
-          <CardBody className="space-y-3">
-            <SectionHeader num={3} icon={<Clock size={16} />} title="Daily Pacing Blocks" />
-            {pacingWindows.map((w, i) => (
-              <div key={i} className="flex items-center gap-2 flex-wrap">
-                <Input
-                  label="Name"
-                  value={w.name}
-                  onChange={(e) => {
-                    const updated = [...pacingWindows];
-                    updated[i] = { ...w, name: e.target.value };
-                    setPacingWindows(updated);
-                  }}
-                  placeholder="name"
-                  className="w-28"
+          {/* 4. Trip Dates */}
+          <Card>
+            <CardBody className="space-y-3">
+              <SectionHeader num={4} icon={<CalendarDays size={16} />} title="Trip Dates" />
+              <div className="flex gap-4 flex-wrap">
+                <DatePicker
+                  label="Start date"
+                  value={startDate ?? ""}
+                  onChange={(v) => setStartDate(v || undefined)}
                 />
-                <Input
-                  label="Start"
-                  type="time"
-                  value={w.startTime}
-                  onChange={(e) => {
-                    const updated = [...pacingWindows];
-                    updated[i] = { ...w, startTime: e.target.value };
-                    setPacingWindows(updated);
-                  }}
-                  className="w-32"
+                <DatePicker
+                  label="End date"
+                  value={endDate ?? ""}
+                  onChange={(v) => setEndDate(v || undefined)}
                 />
-                <Input
-                  label="End"
-                  type="time"
-                  value={w.endTime}
-                  onChange={(e) => {
-                    const updated = [...pacingWindows];
-                    updated[i] = { ...w, endTime: e.target.value };
-                    setPacingWindows(updated);
-                  }}
-                  className="w-32"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPacingWindows(pacingWindows.filter((_, j) => j !== i))}
-                >
-                  Remove
-                </Button>
               </div>
-            ))}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setPacingWindows([...pacingWindows, { name: "", startTime: "12:00", endTime: "13:00" }])}
-            >
-              + Add pacing block
-            </Button>
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
 
-        {/* 4. Trip Dates */}
-        <Card>
-          <CardBody className="space-y-3">
-            <SectionHeader num={4} icon={<CalendarDays size={16} />} title="Trip Dates" />
-            <div className="flex gap-4 flex-wrap">
-              <DatePicker
-                label="Start date"
-                value={startDate ?? ""}
-                onChange={(v) => setStartDate(v || undefined)}
+          {/* 5. Hotel */}
+          <Card>
+            <CardBody className="space-y-3">
+              <SectionHeader num={5} icon={<Building2 size={16} />} title="Pre-Booked Hotel" />
+              <p className="text-xs" style={{ color: "var(--fg-3)" }}>Optional — helps us optimize your walking routes.</p>
+              <Input
+                label="Hotel name"
+                value={hotelName}
+                onChange={(e) => setHotelName(e.target.value)}
+                placeholder="e.g. Park Hyatt Tokyo"
               />
-              <DatePicker
-                label="End date"
-                value={endDate ?? ""}
-                onChange={(v) => setEndDate(v || undefined)}
+              <Input
+                label="Hotel address"
+                value={hotelAddress}
+                onChange={(e) => setHotelAddress(e.target.value)}
+                placeholder="e.g. 3-7-1-2 Nishi Shinjuku"
               />
-            </div>
-          </CardBody>
-        </Card>
+            </CardBody>
+          </Card>
 
-        {/* 5. Hotel */}
-        <Card>
-          <CardBody className="space-y-3">
-            <SectionHeader num={5} icon={<Building2 size={16} />} title="Pre-Booked Hotel" />
-            <p className="text-xs" style={{ color: "var(--fg-3)" }}>Optional — helps us optimize your walking routes.</p>
-            <Input
-              label="Hotel name"
-              value={hotelName}
-              onChange={(e) => setHotelName(e.target.value)}
-              placeholder="e.g. Park Hyatt Tokyo"
-            />
-            <Input
-              label="Hotel address"
-              value={hotelAddress}
-              onChange={(e) => setHotelAddress(e.target.value)}
-              placeholder="e.g. 3-7-1-2 Nishi Shinjuku"
-            />
-          </CardBody>
-        </Card>
+          {error && (
+            <Alert variant="danger">{error}</Alert>
+          )}
+        </form>
+      </main>
 
-        {error && (
-          <Alert variant="danger">{error}</Alert>
-        )}
-      </form>
-
-      {/* Sticky submit CTA */}
+      {/* Fixed CTA — Fragment sibling of main, not nested inside max-w-2xl */}
       <div
         className="fixed bottom-0 left-0 right-0 p-4 z-40"
         style={{ background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
@@ -336,6 +341,6 @@ export default function ProfilePage() {
           </Button>
         </div>
       </div>
-    </main>
+    </>
   );
 }

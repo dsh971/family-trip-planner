@@ -4,6 +4,19 @@
   Tailwind's already-loaded engine also scans our own source files for
   utility classes — without re-importing the full Tailwind bundle (which
   would create a second @layer theme block and conflict with Sumi's tokens).
+
+  IMPORTANT — @source scanning limitation:
+  Standard Tailwind scale classes (h-11, pt-11, pb-28, etc.) are reliably
+  detected because they appear as literal strings in scanned files.
+  Arbitrary-value classes like pt-[3.5rem] or pb-[calc(...)] are NOT reliably
+  generated in this setup — they silently produce no CSS.
+
+  For layout-critical header/nav clearance, always use one of:
+  1. Spacer div (preferred for pages outside the trip layout):
+       <div className="h-11" aria-hidden="true" />
+  2. Standard scale equivalent: pt-14 (3.5rem), pt-11 (2.75rem), etc.
+  3. Inline style as last resort: style={{ paddingTop: "2.75rem" }}
+  Never use arbitrary values like pt-[2.75rem] for structural layout.
 */
 @source "../**/*.{ts,tsx}";
 
