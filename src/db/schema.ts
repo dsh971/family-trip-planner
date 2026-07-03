@@ -99,9 +99,10 @@ export const neighborhoods = sqliteTable("neighborhoods", {
   centroidLng: real("centroid_lng").notNull(),
   walkingRadiusMeters: integer("walking_radius_meters").notNull(),
   familyFriendlinessScore: integer("family_friendliness_score").notNull(),
-  // JSON: { highlights: string[]; safetyNote: string; sampleBundle: string }
+  // JSON: { vibeTagline?: string; highlights: string[]; safetyNote: string; sampleBundle: string }
   dayInTheLifePreview: text("day_in_the_life_preview", { mode: "json" })
     .$type<{
+      vibeTagline?: string;
       highlights: string[];
       safetyNote: string;
       sampleBundle: string;
