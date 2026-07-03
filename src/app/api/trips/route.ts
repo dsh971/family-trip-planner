@@ -53,6 +53,7 @@ export async function POST(request: Request) {
       destinationId: tripData.destinationId,
       startDate: tripData.startDate,
       endDate: tripData.endDate,
+      hotelName: tripData.hotelName ?? null,
       lodgingAnchorLat,
       lodgingAnchorLng,
       lodgingAnchorAddress,

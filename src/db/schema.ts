@@ -72,6 +72,8 @@ export const trips = sqliteTable("trips", {
   selectedNeighborhoodId: integer("selected_neighborhood_id"),
   startDate: text("start_date").notNull(), // ISO date string "YYYY-MM-DD"
   endDate: text("end_date").notNull(),
+  // Hotel name as entered by the user (not geocoded). Nullable — user may skip.
+  hotelName: text("hotel_name"),
   // Nullable until provided by the user at trip setup (KTD-H)
   lodgingAnchorLat: real("lodging_anchor_lat"),
   lodgingAnchorLng: real("lodging_anchor_lng"),
