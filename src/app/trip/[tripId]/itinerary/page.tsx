@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
   Timeline,
   Button,
@@ -12,6 +13,7 @@ import {
 } from "@sumiui/react";
 import type { TimelineItemData } from "@sumiui/react";
 import { Utensils, MapPin } from "lucide-react";
+import StepProgress from "@/components/ui/StepProgress";
 
 interface RouteResult {
   fromName: string;
@@ -48,6 +50,7 @@ interface ItineraryResponse {
   overflow?: Array<{ placeId: number | null; payload: Record<string, unknown> | null }>;
   neighborhood: string | null;
   status?: string;
+  pendingDecisionCount: number;
 }
 
 function formatDayPill(isoDate: string, index: number): string {
@@ -161,35 +164,12 @@ export default function ItineraryPage() {
   const params = useParams<{ tripId: string }>();
   const tripId = Number(params.tripId);
 
-  const [state, setState] = useState<"idle" | "loading" | "building" | "done" | "error">("idle");
+  const [state, setState] = useState<"loading" | "building" | "done" | "empty" | "error">("loading");
   const [data, setData] = useState<ItineraryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeDay, setActiveDay] = useState<string | null>(null);
 
-  const loadItinerary = useCallback(async () => {
-    setState("loading");
-    try {
-      const res = await fetch(`/api/itinerary?tripId=${tripId}`);
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const json = await res.json() as ItineraryResponse;
-      if (json.days.length === 0) {
-        setState("idle");
-      } else {
-        setData(json);
-        setActiveDay(json.days[0]?.date ?? null);
-        setState("done");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setState("error");
-    }
-  }, [tripId]);
-
-  useEffect(() => {
-    void loadItinerary();
-  }, [loadItinerary]);
-
-  async function buildItinerary() {
+  const buildItinerary = useCallback(async () => {
     setState("building");
     setError(null);
     try {
@@ -210,21 +190,82 @@ export default function ItineraryPage() {
       setError(err instanceof Error ? err.message : "Unknown error");
       setState("error");
     }
-  }
+  }, [tripId]);
+
+  const loadItinerary = useCallback(async () => {
+    setState("loading");
+    try {
+      const res = await fetch(`/api/itinerary?tripId=${tripId}`);
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      const json = await res.json() as ItineraryResponse;
+      if (json.days.length === 0) {
+        if (json.pendingDecisionCount > 0) {
+          await buildItinerary();
+        } else {
+          setState("empty");
+        }
+      } else {
+        setData(json);
+        setActiveDay(json.days[0]?.date ?? null);
+        setState("done");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setState("error");
+    }
+  }, [tripId, buildItinerary]);
+
+  useEffect(() => {
+    void loadItinerary();
+  }, [loadItinerary]);
 
   function scrollToDay(date: string) {
     setActiveDay(date);
     document.getElementById(date)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  if (state === "empty") {
+    return (
+      <main className="max-w-lg mx-auto p-4 space-y-4">
+        <div className="mb-4">
+          <StepProgress currentStep="plan" />
+        </div>
+        <div>
+          <h1
+            className="text-2xl font-bold tracking-tight"
+            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+          >
+            Your schedule
+          </h1>
+        </div>
+        <EmptyState
+          title="No places added yet"
+          description="Go back to discovery and add some places to your trip."
+        />
+        <div className="mt-4">
+          <Link
+            href={`/trip/${tripId}/discovery`}
+            style={{ color: "var(--accent)", fontSize: "0.875rem" }}
+          >
+            ← Discover places
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4">
+      <div className="mb-4">
+        <StepProgress currentStep="plan" />
+      </div>
+
       <div>
         <h1
           className="text-2xl font-bold tracking-tight"
           style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
         >
-          Itinerary
+          Your schedule
         </h1>
         {data?.neighborhood && (
           <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
@@ -242,17 +283,6 @@ export default function ItineraryPage() {
         </Alert>
       )}
 
-      {(state === "idle" || state === "done") && (
-        <Button
-          variant="primary"
-          className="w-full"
-          data-testid="build-itinerary-btn"
-          onClick={() => { void buildItinerary(); }}
-        >
-          {state === "done" ? "Recompute itinerary" : "Build itinerary"}
-        </Button>
-      )}
-
       {state === "loading" && (
         <div className="space-y-3">
           {[1, 2, 3, 4].map((n) => <Skeleton key={n} height="4rem" />)}
@@ -262,7 +292,7 @@ export default function ItineraryPage() {
       {state === "building" && (
         <div className="space-y-3">
           <p className="text-sm text-center" style={{ color: "var(--fg-2)" }}>
-            Building your itinerary…
+            Building your schedule…
           </p>
           {[1, 2, 3, 4].map((n) => <Skeleton key={n} height="4rem" />)}
         </div>
@@ -270,10 +300,19 @@ export default function ItineraryPage() {
 
       {state === "done" && data && (
         <>
+          <Button
+            variant="secondary"
+            className="w-full"
+            data-testid="rebuild-btn"
+            onClick={() => { void buildItinerary(); }}
+          >
+            Rebuild schedule
+          </Button>
+
           {data.days.length === 0 ? (
             <EmptyState
               title="No days scheduled"
-              description="Add places in Discovery then build your itinerary."
+              description="Add places in Discovery then rebuild your schedule."
             />
           ) : (
             <>
@@ -312,13 +351,26 @@ export default function ItineraryPage() {
           )}
 
           {data.overflow && data.overflow.length > 0 && (
-            <Alert variant="warning">
-              {data.overflow.length} place{data.overflow.length !== 1 ? "s" : ""} didn&apos;t fit in the schedule:{" "}
-              {data.overflow
-                .map((seg) => (seg.payload?.["placeName"] as string) ?? "Place")
-                .join(", ")}
-            </Alert>
+            <div className="space-y-2">
+              <Alert variant="warning">
+                {data.overflow.length} place{data.overflow.length !== 1 ? "s" : ""} couldn&apos;t fit into your schedule.
+                You can rebuild to redistribute, or{" "}
+                <Link href={`/trip/${tripId}/decisions`} style={{ textDecoration: "underline" }}>
+                  edit your picks
+                </Link>
+                .
+              </Alert>
+            </div>
           )}
+
+          <div style={{ textAlign: "center", paddingTop: "8px" }}>
+            <Link
+              href={`/trip/${tripId}/decisions`}
+              style={{ fontSize: "0.8rem", color: "var(--fg-3)" }}
+            >
+              ← Edit picks
+            </Link>
+          </div>
         </>
       )}
     </main>

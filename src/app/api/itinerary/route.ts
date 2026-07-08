@@ -10,7 +10,7 @@ import {
   itineraryDays,
   itinerarySegments,
 } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { distributeDecisions, type DecisionItem } from "@/services/itinerary/scheduler";
 import { computeDayRoutes } from "@/services/itinerary/routing";
 
@@ -250,10 +250,18 @@ export async function GET(request: Request) {
     result.push({ date: day.date, dayId: day.id, segments });
   }
 
+  const pendingRows = db
+    .select({ cnt: count() })
+    .from(decisions)
+    .where(and(eq(decisions.tripId, tripId), eq(decisions.decision, "yes")))
+    .all();
+  const pendingDecisionCount = pendingRows[0]?.cnt ?? 0;
+
   return NextResponse.json({
     tripId,
     days: result,
     neighborhood: neighborhood?.name ?? null,
     status: trip.status,
+    pendingDecisionCount,
   });
 }

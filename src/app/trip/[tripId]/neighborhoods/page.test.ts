@@ -80,3 +80,27 @@ describe("formatChildrenAges", () => {
   it("three children → 'ages N, M & P'", () =>
     expect(formatChildrenAges([{ age: 4 }, { age: 7 }, { age: 10 }])).toBe("ages 4, 7 & 10"));
 });
+
+function tripNights(startDate: string, endDate: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function formatTripDuration(nights: number): string {
+  if (nights <= 0) return "your whole trip";
+  return nights === 1 ? "1 night" : `${nights} nights`;
+}
+
+describe("tripNights", () => {
+  it("2026-09-01 to 2026-09-07 → 6 nights", () => expect(tripNights("2026-09-01", "2026-09-07")).toBe(6));
+  it("same day → 0 nights", () => expect(tripNights("2026-04-01", "2026-04-01")).toBe(0));
+  it("consecutive days → 1 night", () => expect(tripNights("2026-04-01", "2026-04-02")).toBe(1));
+});
+
+describe("formatTripDuration", () => {
+  it("6 nights → '6 nights'", () => expect(formatTripDuration(6)).toBe("6 nights"));
+  it("1 night → '1 night'", () => expect(formatTripDuration(1)).toBe("1 night"));
+  it("0 nights → 'your whole trip'", () => expect(formatTripDuration(0)).toBe("your whole trip"));
+  it("negative → 'your whole trip'", () => expect(formatTripDuration(-1)).toBe("your whole trip"));
+});

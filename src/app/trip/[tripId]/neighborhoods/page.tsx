@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -12,6 +12,7 @@ import {
   Skeleton,
   EmptyState,
 } from "@sumiui/react";
+import StepProgress from "@/components/ui/StepProgress";
 
 const NeighborhoodMap = dynamic(
   () => import("@/components/ui/NeighborhoodMap"),
@@ -42,6 +43,8 @@ interface TripDetail {
   hotelName: string | null;
   lodgingAnchorLat: number | null;
   lodgingAnchorLng: number | null;
+  startDate: string;
+  endDate: string;
   familyProfile: {
     adultCount: number;
     children: Array<{ age: number }>;
@@ -73,6 +76,17 @@ function scoreToLabel(score: number): string {
   return "Good for families";
 }
 
+function tripNights(startDate: string, endDate: string): number {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+}
+
+function formatTripDuration(nights: number): string {
+  if (nights <= 0) return "your whole trip";
+  return nights === 1 ? "1 night" : `${nights} nights`;
+}
+
 function formatChildrenAges(children: Array<{ age: number }>): string {
   if (children.length === 0) return "";
   const ages = children.map((c) => c.age);
@@ -91,6 +105,8 @@ export default function NeighborhoodsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mapVisible, setMapVisible] = useState(false);
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const cardRefs = useRef<Map<number, HTMLElement>>(new Map());
 
   useEffect(() => {
     void (async () => {
@@ -121,6 +137,7 @@ export default function NeighborhoodsPage() {
   async function handleSelect(neighborhoodId: number) {
     setSelected(neighborhoodId);
     setSubmitting(neighborhoodId);
+    cardRefs.current.get(neighborhoodId)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     const res = await fetch("/api/neighborhoods", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -164,18 +181,13 @@ export default function NeighborhoodsPage() {
   }
 
   const childrenAges = trip ? formatChildrenAges(trip.familyProfile.children) : null;
+  const nights = trip ? tripNights(trip.startDate, trip.endDate) : 0;
+  const mappedNeighborhoods = neighborhoods.map((nb, i) => ({ ...nb, rankPosition: i + 1 }));
 
   return (
     <main className="p-4 pt-6 pb-20 max-w-5xl mx-auto">
-      {/* Step progress */}
-      <div className="flex items-center gap-1 text-xs mb-4 flex-wrap" style={{ color: "var(--fg-3)" }}>
-        <span style={{ color: "var(--accent)" }}>✓ Profile</span>
-        <span>→</span>
-        <span className="font-semibold" style={{ color: "var(--fg-1)" }}>● Area</span>
-        <span>→</span>
-        <span>○ Discover</span>
-        <span>→</span>
-        <span>○ Plan</span>
+      <div className="mb-4">
+        <StepProgress currentStep="area" />
       </div>
 
       <div className="mb-4 space-y-2">
@@ -186,9 +198,8 @@ export default function NeighborhoodsPage() {
           Where do you want to explore?
         </h1>
         <p className="text-sm" style={{ color: "var(--fg-2)" }}>
-          You've set your hotel. This step is different — choose the neighborhood we'll
-          anchor your days around. Activities and restaurants will cluster here, within
-          walking distance.
+          Choose the neighborhood you'll anchor your {formatTripDuration(nights)} around — activities
+          and restaurants will cluster here, within walking distance.
         </p>
 
         {/* Context chips */}
@@ -245,19 +256,26 @@ export default function NeighborhoodsPage() {
       <div className="md:grid md:grid-cols-[40%_60%] md:gap-4 md:items-start">
         {/* Card list — hidden on mobile when map is active */}
         <div className={`space-y-3 ${mapVisible ? "hidden md:block" : "block"}`}>
-          {neighborhoods.map((nb, i) => {
+          {mappedNeighborhoods.map((nb, i) => {
             const distanceKm =
               trip?.lodgingAnchorLat != null && trip?.lodgingAnchorLng != null
                 ? haversineKm(trip.lodgingAnchorLat, trip.lodgingAnchorLng, nb.centroidLat, nb.centroidLng)
                 : null;
 
             return (
-              <Card
+              <div
                 key={nb.id}
+                ref={(el) => { if (el) cardRefs.current.set(nb.id, el); else cardRefs.current.delete(nb.id); }}
+                onMouseEnter={() => setHoveredId(nb.id)}
+                onMouseLeave={() => setHoveredId(null)}
+              >
+              <Card
                 style={
                   selected === nb.id
                     ? { borderColor: "var(--accent)", background: "var(--bg-1)" }
-                    : {}
+                    : hoveredId === nb.id
+                      ? { borderColor: "var(--line-2)" }
+                      : {}
                 }
               >
                 <CardBody className="space-y-2">
@@ -351,6 +369,7 @@ export default function NeighborhoodsPage() {
                   </Button>
                 </CardFooter>
               </Card>
+              </div>
             );
           })}
         </div>
@@ -361,12 +380,17 @@ export default function NeighborhoodsPage() {
           style={{ height: "70vh", minHeight: "400px", position: "sticky", top: "60px" }}
         >
           <NeighborhoodMap
-            neighborhoods={neighborhoods}
+            neighborhoods={mappedNeighborhoods}
             selectedId={selected}
+            hoveredId={hoveredId}
             onSelect={(id) => {
               setSelected(id);
               setMapVisible(false);
+              cardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
             }}
+            onHover={setHoveredId}
+            lodgingAnchorLat={trip?.lodgingAnchorLat}
+            lodgingAnchorLng={trip?.lodgingAnchorLng}
           />
         </div>
       </div>

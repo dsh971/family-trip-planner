@@ -126,10 +126,22 @@ export default function ProfilePage() {
 
   return (
     <>
-      {/* Spacer for fixed AppHeader (h-11 = 44px) — same pattern as home page */}
-      <div className="h-11" aria-hidden="true" />
-
-      <main className="max-w-2xl mx-auto w-full px-6 pt-4 pb-28 space-y-4">
+      {/* Scrollable content area between AppHeader (44px) and CTA bar (77px).
+          Inline styles for structural layout — see globals.css for rationale. */}
+      <div
+        style={{
+          position: "fixed",
+          top: "2.75rem",
+          bottom: "77px",
+          left: 0,
+          right: 0,
+          overflowY: "auto",
+        }}
+      >
+      <main
+        className="max-w-2xl mx-auto w-full px-6 space-y-4"
+        style={{ paddingTop: "1rem", paddingBottom: "1.5rem" }}
+      >
         <div className="mb-2">
           <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
             Tokyo, Japan
@@ -317,8 +329,9 @@ export default function ProfilePage() {
           )}
         </form>
       </main>
+      </div>
 
-      {/* Fixed CTA — Fragment sibling of main, not nested inside max-w-2xl */}
+      {/* Fixed CTA bar (77px tall: p-4 × 2 + Button lg 45px) */}
       <div
         className="fixed bottom-0 left-0 right-0 p-4 z-40"
         style={{ background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}

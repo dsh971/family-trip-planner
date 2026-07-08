@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useState, useCallback, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   Card,
   CardBody,
@@ -12,6 +12,7 @@ import {
   EmptyState,
 } from "@sumiui/react";
 import { CheckCircle2 } from "lucide-react";
+import StepProgress from "@/components/ui/StepProgress";
 
 interface DiscoveryPlace {
   placeId: string;
@@ -48,6 +49,16 @@ const PILL_FILTERS: { label: string; value: FilterValue }[] = [
   { label: "Visit", value: "visit" },
 ];
 
+function corroborationToSignal(score: number): string | null {
+  if (score === 0) return null;
+  if (score === 1) return "Trending locally";
+  return "Highly recommended locally";
+}
+
+function metersToMinutes(meters: number): string {
+  return `~${Math.max(5, Math.round(meters / 80 / 5) * 5)}-min walk`;
+}
+
 function PriceDots({ level }: { level: number | null }) {
   if (level === null) return null;
   return (
@@ -60,28 +71,51 @@ function PriceDots({ level }: { level: number | null }) {
 
 function PlaceCard({
   place,
+  currentDecision,
   onDecide,
 }: {
   place: DiscoveryPlace;
+  currentDecision: "yes" | "no" | null;
   onDecide: (placeId: string, action: "yes" | "no", worthTheDetour: boolean) => void;
 }) {
-  const [decided, setDecided] = useState<"yes" | "no" | null>(null);
-
-  function decide(action: "yes" | "no") {
-    setDecided(action);
-    onDecide(place.placeId, action, place.worthTheDetour);
-  }
-
-  if (decided === "no") return null;
-
   const categoryColor =
     place.category === "eat"
       ? "var(--status-warning-bg, #fef3c7)"
       : "var(--status-info-bg, #dbeafe)";
 
+  const signal = corroborationToSignal(place.corroborationScore);
+
+  if (currentDecision === "no") {
+    return (
+      <Card style={{ opacity: 0.45 }}>
+        <CardBody>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm truncate" style={{ color: "var(--fg-3)" }}>{place.name}</span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs" style={{ color: "var(--fg-3)" }}>Skipped</span>
+              <button
+                onClick={() => onDecide(place.placeId, "yes", place.worthTheDetour)}
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--accent)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "2px 6px",
+                  textDecoration: "underline",
+                }}
+              >
+                Add back
+              </button>
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+
   return (
-    <Card style={decided === "yes" ? { borderColor: "var(--accent)" } : {}}>
-      {/* Category color band */}
+    <Card style={currentDecision === "yes" ? { borderColor: "var(--accent)" } : {}}>
       <div
         className="h-1 w-full rounded-t-lg"
         style={{ background: categoryColor }}
@@ -115,26 +149,34 @@ function PlaceCard({
             </span>
           )}
           <PriceDots level={place.priceLevel} />
-          <span style={{ color: "var(--fg-3)" }}>{Math.round(place.distanceFromCentroidMeters)}m</span>
+          <span style={{ color: "var(--fg-3)" }}>{metersToMinutes(place.distanceFromCentroidMeters)}</span>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
-          {place.corroborationScore >= 2 && (
-            <Badge variant={place.corroborationScore >= 3 ? "success" : "info"}>
-              {place.corroborationScore} src
-            </Badge>
+          {signal && (
+            <Badge variant="neutral">{signal}</Badge>
           )}
           {place.goodForChildren && <Badge variant="success">Kids ✓</Badge>}
           {place.worthTheDetour && <Badge variant="neutral">Worth detour</Badge>}
           {place.nearSafetyArea && <Badge variant="warning">Safety note</Badge>}
         </div>
 
-        {decided !== "yes" ? (
+        {currentDecision !== "yes" ? (
           <div className="flex gap-2 pt-1">
-            <Button variant="primary" size="sm" className="flex-1" onClick={() => decide("yes")}>
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1"
+              onClick={() => onDecide(place.placeId, "yes", place.worthTheDetour)}
+            >
               Add to list
             </Button>
-            <Button variant="ghost" size="sm" className="flex-1" onClick={() => decide("no")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex-1"
+              onClick={() => onDecide(place.placeId, "no", place.worthTheDetour)}
+            >
               Skip
             </Button>
           </div>
@@ -154,11 +196,13 @@ function PlaceCard({
 export default function DiscoveryPage() {
   const params = useParams<{ tripId: string }>();
   const tripId = Number(params.tripId);
+  const router = useRouter();
 
-  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [state, setState] = useState<"loading" | "done" | "error">("loading");
   const [data, setData] = useState<DiscoveryResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
+  const [decisions, setDecisions] = useState<Record<string, "yes" | "no">>({});
 
   const runDiscovery = useCallback(async () => {
     setState("loading");
@@ -182,7 +226,12 @@ export default function DiscoveryPage() {
     }
   }, [tripId]);
 
+  useEffect(() => {
+    void runDiscovery();
+  }, [runDiscovery]);
+
   function handleDecide(placeId: string, action: "yes" | "no", worthTheDetour: boolean) {
+    setDecisions((prev) => ({ ...prev, [placeId]: action }));
     if (action !== "yes") return;
     fetch("/api/decisions", {
       method: "POST",
@@ -191,13 +240,22 @@ export default function DiscoveryPage() {
     }).catch((e) => console.error("[Decision] Failed to persist", e));
   }
 
+  const addedCount = Object.values(decisions).filter((d) => d === "yes").length;
+
   const visiblePlaces =
     data?.results.filter((p) => activeFilter === "all" || p.category === activeFilter) ?? [];
   const countEat = data?.results.filter((p) => p.category === "eat").length ?? 0;
   const countVisit = data?.results.filter((p) => p.category === "visit").length ?? 0;
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
+    <main
+      className="max-w-lg mx-auto p-4 space-y-4"
+      style={{ paddingBottom: addedCount >= 1 ? "140px" : undefined }}
+    >
+      <div className="mb-4">
+        <StepProgress currentStep="discover" />
+      </div>
+
       <div>
         <h1
           className="text-2xl font-bold tracking-tight"
@@ -205,18 +263,12 @@ export default function DiscoveryPage() {
         >
           Discover Places
         </h1>
-        {data && (
-          <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
-            {data.neighborhoodName}
-          </p>
-        )}
+        <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
+          {data
+            ? `Places to eat and visit near ${data.neighborhoodName}, filtered for families`
+            : "Finding the best places for your family…"}
+        </p>
       </div>
-
-      {state === "idle" && (
-        <Button variant="primary" size="lg" className="w-full" onClick={() => { void runDiscovery(); }}>
-          Find family-friendly spots
-        </Button>
-      )}
 
       {state === "loading" && (
         <div className="space-y-3">
@@ -235,12 +287,6 @@ export default function DiscoveryPage() {
 
       {state === "done" && data && (
         <>
-          {!data.wgAvailable && (
-            <Alert variant="warning">
-              WG CLI not available — showing web + Google Places results only
-            </Alert>
-          )}
-
           {/* Pill filters */}
           <div
             className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
@@ -281,15 +327,72 @@ export default function DiscoveryPage() {
               />
             ) : (
               visiblePlaces.map((place) => (
-                <PlaceCard key={place.placeId} place={place} onDecide={handleDecide} />
+                <PlaceCard
+                  key={place.placeId}
+                  place={place}
+                  currentDecision={decisions[place.placeId] ?? null}
+                  onDecide={handleDecide}
+                />
               ))
             )}
           </div>
 
-          <Button variant="secondary" className="w-full" onClick={() => { void runDiscovery(); }}>
-            Refresh results
-          </Button>
+          <button
+            onClick={() => { void runDiscovery(); }}
+            style={{
+              fontSize: "0.8rem",
+              color: "var(--fg-3)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textDecoration: "underline",
+              padding: "4px 0",
+              display: "block",
+              width: "100%",
+              textAlign: "center",
+            }}
+          >
+            Search again
+          </button>
         </>
+      )}
+
+      {addedCount >= 1 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "64px",
+            left: 0,
+            right: 0,
+            background: "var(--accent, #2d9b6f)",
+            color: "var(--fg-on-malachite, #fff)",
+            padding: "12px 16px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            zIndex: 40,
+            boxShadow: "0 -2px 8px rgba(0,0,0,0.12)",
+          }}
+        >
+          <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
+            {addedCount} {addedCount === 1 ? "place" : "places"} added
+          </span>
+          <button
+            onClick={() => router.push(`/trip/${tripId}/itinerary`)}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "1px solid rgba(255,255,255,0.4)",
+              borderRadius: "6px",
+              padding: "6px 14px",
+              color: "inherit",
+              fontWeight: 600,
+              fontSize: "0.875rem",
+              cursor: "pointer",
+            }}
+          >
+            Build my schedule →
+          </button>
+        </div>
       )}
     </main>
   );
