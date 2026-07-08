@@ -38,6 +38,8 @@ vi.mock("react-leaflet", () => ({
     </button>
   ),
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Circle: () => null,
+  useMap: () => ({ fitBounds: vi.fn() }),
 }));
 
 vi.mock("leaflet/dist/leaflet.css", () => ({}));
@@ -45,8 +47,8 @@ vi.mock("leaflet/dist/leaflet.css", () => ({}));
 import NeighborhoodMap from "../NeighborhoodMap";
 
 const sampleNeighborhoods = [
-  { id: 1, name: "Kichijoji", centroidLat: 35.7022, centroidLng: 139.5803 },
-  { id: 2, name: "Yanaka", centroidLat: 35.7262, centroidLng: 139.7706 },
+  { id: 1, name: "Kichijoji", centroidLat: 35.7022, centroidLng: 139.5803, walkingRadiusMeters: 800, rankPosition: 1 },
+  { id: 2, name: "Yanaka", centroidLat: 35.7262, centroidLng: 139.7706, walkingRadiusMeters: 600, rankPosition: 2 },
 ];
 
 describe("NeighborhoodMap", () => {
@@ -61,7 +63,7 @@ describe("NeighborhoodMap", () => {
 
   it("renders without throwing when given empty neighborhoods and selectedId null", () => {
     expect(() =>
-      render(<NeighborhoodMap neighborhoods={[]} selectedId={null} onSelect={vi.fn()} />)
+      render(<NeighborhoodMap neighborhoods={[]} selectedId={null} hoveredId={null} onSelect={vi.fn()} />)
     ).not.toThrow();
   });
 
@@ -70,6 +72,7 @@ describe("NeighborhoodMap", () => {
       <NeighborhoodMap
         neighborhoods={sampleNeighborhoods}
         selectedId={null}
+        hoveredId={null}
         onSelect={vi.fn()}
       />
     );
@@ -83,6 +86,7 @@ describe("NeighborhoodMap", () => {
       <NeighborhoodMap
         neighborhoods={sampleNeighborhoods}
         selectedId={null}
+        hoveredId={null}
         onSelect={onSelect}
       />
     );
@@ -96,6 +100,7 @@ describe("NeighborhoodMap", () => {
       <NeighborhoodMap
         neighborhoods={sampleNeighborhoods}
         selectedId={null}
+        hoveredId={null}
         onSelect={vi.fn()}
       />
     );

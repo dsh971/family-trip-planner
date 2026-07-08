@@ -72,6 +72,8 @@ export const trips = sqliteTable("trips", {
   selectedNeighborhoodId: integer("selected_neighborhood_id"),
   startDate: text("start_date").notNull(), // ISO date string "YYYY-MM-DD"
   endDate: text("end_date").notNull(),
+  // Hotel name as entered by the user (not geocoded). Nullable — user may skip.
+  hotelName: text("hotel_name"),
   // Nullable until provided by the user at trip setup (KTD-H)
   lodgingAnchorLat: real("lodging_anchor_lat"),
   lodgingAnchorLng: real("lodging_anchor_lng"),
@@ -97,9 +99,10 @@ export const neighborhoods = sqliteTable("neighborhoods", {
   centroidLng: real("centroid_lng").notNull(),
   walkingRadiusMeters: integer("walking_radius_meters").notNull(),
   familyFriendlinessScore: integer("family_friendliness_score").notNull(),
-  // JSON: { highlights: string[]; safetyNote: string; sampleBundle: string }
+  // JSON: { vibeTagline?: string; highlights: string[]; safetyNote: string; sampleBundle: string }
   dayInTheLifePreview: text("day_in_the_life_preview", { mode: "json" })
     .$type<{
+      vibeTagline?: string;
       highlights: string[];
       safetyNote: string;
       sampleBundle: string;

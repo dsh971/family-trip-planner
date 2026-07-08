@@ -12,6 +12,7 @@ import {
   Alert,
   EmptyState,
 } from "@sumiui/react";
+import StepProgress from "@/components/ui/StepProgress";
 
 interface DecisionRow {
   id: number;
@@ -84,13 +85,20 @@ export default function DecisionsPage() {
 
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4 pb-24">
+      <div className="mb-4">
+        <StepProgress currentStep="discover" />
+      </div>
+
       <div>
         <h1
           className="text-2xl font-bold tracking-tight"
           style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
         >
-          My Trip List
+          Your picks
         </h1>
+        <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
+          Adjust your list here, then build your schedule.
+        </p>
 
         {/* Stat chips */}
         {decisions.length > 0 && (
@@ -207,11 +215,23 @@ export default function DecisionsPage() {
             )}
           </div>
 
-          {/* Build itinerary CTA */}
+          {/* Empty state back-link */}
+          {decisions.length === 0 && !loading && (
+            <div style={{ textAlign: "center", paddingTop: "8px" }}>
+              <Link
+                href={`/trip/${params.tripId}/discovery`}
+                style={{ fontSize: "0.875rem", color: "var(--accent)" }}
+              >
+                ← Back to discovering
+              </Link>
+            </div>
+          )}
+
+          {/* Build schedule CTA */}
           {decisions.length > 0 && (
             <Button variant="primary" size="lg" className="w-full" asChild>
               <Link href={`/trip/${params.tripId}/itinerary`}>
-                Build itinerary →
+                Build my schedule →
               </Link>
             </Button>
           )}
