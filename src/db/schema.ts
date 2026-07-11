@@ -158,13 +158,18 @@ export const places = sqliteTable(
     types: text("types", { mode: "json" }).$type<string[]>().notNull().default([]),
     goodForChildren: integer("good_for_children", { mode: "boolean" }),
     menuForChildren: integer("menu_for_children", { mode: "boolean" }),
-    // JSON: string[] — values: "web-search" | "google-places" | "wanderlust-goat"
+    // JSON: string[] — values: "google-places-text-search" | "wanderlust-goat"
     sources: text("sources", { mode: "json" })
       .$type<string[]>()
       .notNull()
       .default([]),
-    // Count of independent WG cross-sources that mention this place (KTD-C)
+    // Count of independent sources that mention this place (KTD-C)
     corroborationScore: integer("corroboration_score").notNull().default(0),
+    // JSON: Array<{ startTime: string }> — persisted for consistent late-night filtering
+    openingHours: text("opening_hours", { mode: "json" })
+      .$type<Array<{ startTime: string }>>()
+      .notNull()
+      .default([]),
     // Timestamp when rating/reviewCount/location were last fetched
     enrichedAt: integer("enriched_at", { mode: "timestamp" }),
   },

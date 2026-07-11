@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { neighborhoods, safetyAreas, places, trips, familyProfiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { searchCandidates } from "@/services/discovery/web-search";
+import { textSearchPlaces, getPlaceDetails } from "@/services/discovery/places";
+import { buildSources, corroborationScore } from "@/services/discovery/corroboration";
 import {
   filterAndRankCandidates,
   annotateDistances,
@@ -14,64 +15,6 @@ import {
   checkAvailability,
 } from "@/services/wanderlust-goat/client";
 import { WGUnavailableError } from "@/services/wanderlust-goat/types";
-
-async function enrichWithGooglePlaces(name: string, address: string | null): Promise<{
-  placeId: string;
-  lat: number;
-  lng: number;
-  rating: number | null;
-  reviewCount: number | null;
-  priceLevel: number | null;
-  types: string[];
-  goodForChildren: boolean | null;
-  menuForChildren: boolean | null;
-  openingHours: Array<{ startTime: string }>;
-} | null> {
-  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
-  if (!apiKey) return null;
-
-  const query = address ? `${name} ${address}` : name;
-  const url = new URL("https://maps.googleapis.com/maps/api/place/findplacefromtext/json");
-  url.searchParams.set("input", query);
-  url.searchParams.set("inputtype", "textquery");
-  url.searchParams.set("fields", "place_id,geometry,rating,user_ratings_total,price_level,types");
-  url.searchParams.set("key", apiKey);
-
-  try {
-    const res = await fetch(url.toString());
-    if (!res.ok) return null;
-
-    const json = await res.json() as {
-      status: string;
-      candidates: Array<{
-        place_id: string;
-        geometry: { location: { lat: number; lng: number } };
-        rating?: number;
-        user_ratings_total?: number;
-        price_level?: number;
-        types?: string[];
-      }>;
-    };
-
-    if (json.status !== "OK" || json.candidates.length === 0) return null;
-
-    const c = json.candidates[0]!;
-    return {
-      placeId: c.place_id,
-      lat: c.geometry.location.lat,
-      lng: c.geometry.location.lng,
-      rating: c.rating ?? null,
-      reviewCount: c.user_ratings_total ?? null,
-      priceLevel: c.price_level ?? null,
-      types: c.types ?? [],
-      goodForChildren: null, // requires Place Details API — skipping in Find Place
-      menuForChildren: null,
-      openingHours: [],
-    };
-  } catch {
-    return null;
-  }
-}
 
 // Concurrency-limited batch processor
 async function withConcurrencyLimit<T>(
@@ -105,7 +48,10 @@ export async function POST(request: Request) {
 
   const trip = db.select().from(trips).where(eq(trips.id, tripId)).all()[0];
   if (!trip || !trip.selectedNeighborhoodId) {
-    return NextResponse.json({ error: "Trip not found or no neighborhood selected" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Trip not found or no neighborhood selected" },
+      { status: 404 }
+    );
   }
 
   const neighborhood = db
@@ -126,98 +72,128 @@ export async function POST(request: Request) {
   const categories: Array<"eat" | "visit"> = ["eat", "visit"];
   const candidates: DiscoveryCandidate[] = [];
 
+  // Declared before the loop so both categories accumulate into one shared map
+  const openingHoursMap = new Map<string, Array<{ startTime: string }>>();
+
   const wgAvailable = await checkAvailability();
 
   for (const category of categories) {
-    const candidatePool: Array<{ name: string; address: string | null }> = [];
+    // Stage 1: Google Places Text Search — structured place objects directly
+    const textSearchResults = await textSearchPlaces(neighborhood.name, category);
 
-    // Stage 1: Web search candidates
-    const webCandidates = await searchCandidates(neighborhood.name, category);
-    for (const wc of webCandidates) {
-      candidatePool.push({ name: wc.name, address: wc.address });
-    }
-
-    // Stage 1b: WG goat discovery candidates
+    // Stage 1b: WG CLI — corroboration signal only (WG-only places not added as candidates)
+    const wgNames: string[] = [];
     if (wgAvailable) {
       try {
-        const wgResult = await discoverGoat(neighborhood.name, category, neighborhood.walkingRadiusMeters);
+        const wgResult = await discoverGoat(
+          neighborhood.name,
+          category,
+          neighborhood.walkingRadiusMeters
+        );
         for (const place of wgResult.results) {
-          candidatePool.push({ name: place.name, address: place.address });
+          wgNames.push(place.name);
         }
       } catch (err) {
         if (!(err instanceof WGUnavailableError)) {
-          console.warn("[Discovery] WG error:", err instanceof Error ? err.message : err);
+          console.warn(
+            "[Discovery] WG error:",
+            err instanceof Error ? err.message : err
+          );
         }
       }
     }
 
-    // Stage 2: Google Places enrichment (bounded concurrency)
+    // Dedup by placeId (Text Search can occasionally return duplicates)
+    const seen = new Set<string>();
+    const deduped = textSearchResults.filter((r) => {
+      if (seen.has(r.placeId)) return false;
+      seen.add(r.placeId);
+      return true;
+    });
+
+    // Stage 2: Place Details enrichment (concurrency-limited, 8 parallel)
     const enriched: DiscoveryCandidate[] = [];
-    await withConcurrencyLimit(candidatePool, async ({ name, address }) => {
-      const gp = await enrichWithGooglePlaces(name, address);
-      if (!gp) return;
 
-      // Skip if placeId already exists in the enriched pool
-      if (enriched.some((e) => e.placeId === gp.placeId)) return;
+    await withConcurrencyLimit(
+      deduped,
+      async (place) => {
+        const details = await getPlaceDetails(place.placeId);
+        const sources = buildSources(place.name, wgNames);
+        const score = corroborationScore(sources);
+        const hours = details?.openingHours ?? [];
 
-      const upsertRows = db
-        .insert(places)
-        .values({
-          neighborhoodId: neighborhood.id,
-          placeId: gp.placeId,
-          name,
-          category,
-          lat: gp.lat,
-          lng: gp.lng,
-          rating: gp.rating,
-          reviewCount: gp.reviewCount,
-          priceLevel: gp.priceLevel,
-          types: gp.types,
-          goodForChildren: gp.goodForChildren,
-          menuForChildren: gp.menuForChildren,
-          sources: ["google-places"],
-          corroborationScore: 0,
-          enrichedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: [places.placeId, places.neighborhoodId],
-          set: {
-            rating: gp.rating,
-            reviewCount: gp.reviewCount,
-            priceLevel: gp.priceLevel,
+        openingHoursMap.set(place.placeId, hours);
+
+        const upsertRows = db
+          .insert(places)
+          .values({
+            neighborhoodId: neighborhood.id,
+            placeId: place.placeId,
+            name: place.name,
+            category,
+            lat: place.lat,
+            lng: place.lng,
+            rating: place.rating,
+            reviewCount: place.reviewCount,
+            priceLevel: place.priceLevel,
+            types: place.types,
+            goodForChildren: details?.goodForChildren ?? null,
+            menuForChildren: details?.menuForChildren ?? null,
+            sources,
+            corroborationScore: score,
+            openingHours: hours,
             enrichedAt: new Date(),
-          },
-        })
-        .returning()
-        .all();
+          })
+          .onConflictDoUpdate({
+            target: [places.placeId, places.neighborhoodId],
+            set: {
+              rating: place.rating,
+              reviewCount: place.reviewCount,
+              priceLevel: place.priceLevel,
+              sources,
+              corroborationScore: score,
+              openingHours: hours,
+              enrichedAt: new Date(),
+            },
+          })
+          .returning()
+          .all();
 
-      const persisted = upsertRows[0];
-      if (!persisted) return;
+        if (!upsertRows[0]) return;
 
-      enriched.push({
-        placeId: gp.placeId,
-        name,
-        category,
-        lat: gp.lat,
-        lng: gp.lng,
-        rating: gp.rating,
-        reviewCount: gp.reviewCount,
-        priceLevel: gp.priceLevel,
-        types: gp.types,
-        goodForChildren: gp.goodForChildren,
-        menuForChildren: gp.menuForChildren,
-        sources: ["google-places"],
-        corroborationScore: 0,
-        distanceFromCentroidMeters: 0, // computed below
-        worthTheDetour: false,
-      });
-    }, 8);
+        enriched.push({
+          placeId: place.placeId,
+          name: place.name,
+          category,
+          lat: place.lat,
+          lng: place.lng,
+          rating: place.rating,
+          reviewCount: place.reviewCount,
+          priceLevel: place.priceLevel,
+          types: place.types,
+          goodForChildren: details?.goodForChildren ?? null,
+          menuForChildren: details?.menuForChildren ?? null,
+          sources,
+          corroborationScore: score,
+          distanceFromCentroidMeters: 0,
+          worthTheDetour: false,
+        });
+      },
+      8
+    );
 
     if (enriched.length === 0) {
-      // Empty state — widen radius once (fall back to serving from DB if any exist)
-      const dbPlaces = db.select().from(places).where(eq(places.neighborhoodId, neighborhood.id)).all();
-      const dbCategoryPlaces = dbPlaces.filter((p) => p.category === category);
+      // DB fallback: load cached places and restore openingHoursMap from stored data
+      const dbCategoryPlaces = db
+        .select()
+        .from(places)
+        .where(eq(places.neighborhoodId, neighborhood.id))
+        .all()
+        .filter((p) => p.category === category);
+
       for (const p of dbCategoryPlaces) {
+        const storedHours = (p.openingHours as Array<{ startTime: string }>) ?? [];
+        openingHoursMap.set(p.placeId, storedHours);
         enriched.push({
           placeId: p.placeId,
           name: p.name,
@@ -238,10 +214,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Annotate distances from neighborhood centroid
     const withDistances = annotateDistances(enriched, neighborhood);
 
-    // Mark "worth the detour" for out-of-radius places
     for (const candidate of withDistances) {
       candidate.worthTheDetour =
         candidate.distanceFromCentroidMeters > neighborhood.walkingRadiusMeters &&
@@ -257,11 +231,12 @@ export async function POST(request: Request) {
     .where(eq(familyProfiles.id, trip.familyProfileId))
     .all()[0];
 
-  const filtered = filterAndRankCandidates(candidates, profile ?? {
-    dietaryTags: [],
-    accessibilityTags: [],
-    pacingWindows: [],
-  }, sas);
+  const filtered = filterAndRankCandidates(
+    candidates,
+    profile ?? { dietaryTags: [], accessibilityTags: [], pacingWindows: [] },
+    sas,
+    openingHoursMap
+  );
 
   return NextResponse.json({
     neighborhoodId: neighborhood.id,
