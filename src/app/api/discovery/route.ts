@@ -75,7 +75,8 @@ export async function POST(request: Request) {
   // Declared before the loop so both categories accumulate into one shared map
   const openingHoursMap = new Map<string, Array<{ startTime: string }>>();
 
-  const wgAvailable = await checkAvailability();
+  const wgInstalled = await checkAvailability();
+  let wgDiscoverSucceeded = false;
 
   for (const category of categories) {
     // Stage 1: Google Places Text Search — structured place objects directly
@@ -83,13 +84,14 @@ export async function POST(request: Request) {
 
     // Stage 1b: WG CLI — corroboration signal only (WG-only places not added as candidates)
     const wgNames: string[] = [];
-    if (wgAvailable) {
+    if (wgInstalled) {
       try {
         const wgResult = await discoverGoat(
           neighborhood.name,
           category,
           neighborhood.walkingRadiusMeters
         );
+        wgDiscoverSucceeded = true;
         for (const place of wgResult.results) {
           wgNames.push(place.name);
         }
@@ -242,6 +244,6 @@ export async function POST(request: Request) {
     neighborhoodId: neighborhood.id,
     neighborhoodName: neighborhood.name,
     results: filtered,
-    wgAvailable,
+    wgAvailable: wgDiscoverSucceeded,
   });
 }
