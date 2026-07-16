@@ -15,6 +15,13 @@
       "when": 1783117326909,
       "tag": "0001_serious_cyclops",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783798302516,
+      "tag": "0002_handy_slayback",
+      "breakpoints": true
     }
   ]
 }

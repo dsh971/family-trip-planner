@@ -1,0 +1,1 @@
+ALTER TABLE `places` ADD `opening_hours` text DEFAULT '[]' NOT NULL;
