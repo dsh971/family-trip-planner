@@ -68,7 +68,23 @@ export async function discoverGoat(
   radiusMeters: number
 ): Promise<WGGoatResult> {
   const anchor = buildAnchorName(neighborhoodName);
-  const flagsKey = `cat:${category},r:${radiusMeters}`;
+
+  const walkingMinutes = Math.max(5, Math.round(radiusMeters / 80));
+
+  let criteria: string;
+  let type: string;
+  if (category === "eat") {
+    criteria = "family restaurants";
+    type = "restaurant";
+  } else if (category === "visit") {
+    criteria = "family activities and attractions";
+    type = "tourist_attraction";
+  } else {
+    criteria = category;
+    type = category;
+  }
+
+  const flagsKey = `min:${walkingMinutes},criteria:${criteria},type:${type}`;
   const key = cacheKey("goat", anchor, flagsKey);
 
   const cached = getFromCache<WGGoatResult>(key);
@@ -82,12 +98,12 @@ export async function discoverGoat(
     "--no-color",
     "--yes",
     "--agent",
-    "--select",
-    "name,lat,lng,address,walking_minutes,score,sources,evidence,why,business_status,google_maps_uri",
-    "--radius",
-    String(radiusMeters),
-    "--category",
-    category,
+    "--minutes",
+    String(walkingMinutes),
+    "--criteria",
+    criteria,
+    "--type",
+    type,
   ];
 
   const raw = await runCommand(args);

@@ -1,0 +1,12 @@
+Usage: wanderlust-goat-pp-cli goat <anchor> [options]
+
+Options:
+  --json          Output JSON
+  --no-input      Disable interactive prompts
+  --no-color      Disable color output
+  --yes           Auto-confirm prompts
+  --agent         Agent mode
+  --minutes <n>   Walking-time radius in minutes (replaces --radius)
+  --criteria <s>  Scoring criteria (free text)
+  --type <s>      Google Places type filter (repeatable)
+  --help          Show help
