@@ -27,6 +27,33 @@ vi.mock("@/services/wanderlust-goat/client", () => ({
   discoverGoat: vi.fn().mockResolvedValue({ results: [] }),
 }));
 
+import type { WGPlace } from "@/services/wanderlust-goat/types";
+import { checkAvailability, discoverGoat } from "@/services/wanderlust-goat/client";
+
+function makeWgPlace(overrides: Partial<WGPlace> = {}): WGPlace {
+  return {
+    name: overrides.name ?? "Test WG Place",
+    lat: overrides.lat ?? 35.703,
+    lng: overrides.lng ?? 139.581,
+    address: "Tokyo, Japan",
+    walking_minutes: 5,
+    score: { total: 75, google_base: 60, locale_boost: 15, notability_boost: 0, reddit_boost: 0, criteria_match: 0 },
+    sources: overrides.sources ?? [],
+    evidence: null,
+    why: "",
+    business_status: "OPERATIONAL",
+    google_maps_uri: "https://maps.google.com/?cid=123",
+  };
+}
+
+function makeWgResult(wgPlaces: WGPlace[]) {
+  return {
+    anchor: { query: "Kichijoji, Tokyo, Japan", lat: 35.702, lng: 139.580, country: "JP", display: "Kichijoji", city: "Kichijoji" },
+    results: wgPlaces,
+    trace: { Region: "JP", SeedCount: 10, StageHits: wgPlaces.length, StubsSkipped: [], Errors: [] },
+  };
+}
+
 function makeTextSearchResult(overrides: Partial<{
   place_id: string; name: string; lat: number; lng: number;
   rating: number; user_ratings_total: number; price_level: number; types: string[];
@@ -235,5 +262,182 @@ describe("POST /api/discovery", () => {
     const placeIds = json.results.map((r) => r.placeId);
     expect(placeIds).not.toContain("ChIJ_bar");
     expect(placeIds).toContain("ChIJ_ramen");
+  });
+});
+
+describe("U3: WG+Tabelog integration", () => {
+  let db: Db;
+
+  beforeEach(async () => {
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    db = createDb();
+    const { getDb } = await import("@/db/client");
+    vi.mocked(getDb).mockReturnValue(
+      db as ReturnType<typeof import("@/db/client").getDb>
+    );
+    // Reset WG mocks to default (unavailable) for isolation
+    vi.mocked(checkAvailability).mockResolvedValue(false);
+    vi.mocked(discoverGoat).mockResolvedValue({ results: [] } as never);
+  });
+
+  it("AE1: Google result gets tabelog source when WG returns it with tabelog in sources", async () => {
+    const { trip } = seedWorld(db);
+    vi.mocked(checkAvailability).mockResolvedValue(true);
+    // WG returns "Ramen Nagi" with tabelog source
+    vi.mocked(discoverGoat)
+      .mockResolvedValueOnce(makeWgResult([makeWgPlace({ name: "Ramen Nagi", sources: ["tabelog"] })]) as never)
+      .mockResolvedValueOnce(makeWgResult([]) as never); // visit category
+
+    // Google Text Search also returns "Ramen Nagi"
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_ramen", name: "Ramen Nagi", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({})) // details for Ramen Nagi
+      .mockResolvedValueOnce(makeTextSearchResponse([])); // visit: no results
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as { results: Array<{ placeId: string; sources: string[]; corroborationScore: number }> };
+    const ramen = json.results.find((r) => r.placeId === "ChIJ_ramen");
+    expect(ramen).toBeDefined();
+    expect(ramen!.sources).toContain("google-places-text-search");
+    expect(ramen!.sources).toContain("wanderlust-goat");
+    expect(ramen!.sources).toContain("tabelog");
+    expect(ramen!.corroborationScore).toBe(3);
+  });
+
+  it("AE2: WG+Tabelog-only place is promoted as candidate with synthetic placeId", async () => {
+    const { trip } = seedWorld(db);
+    vi.mocked(checkAvailability).mockResolvedValue(true);
+    vi.mocked(discoverGoat)
+      .mockResolvedValueOnce(makeWgResult([
+        makeWgPlace({ name: "Hidden Gem", lat: 35.7001, lng: 139.5801, sources: ["tabelog"] }),
+      ]) as never)
+      .mockResolvedValueOnce(makeWgResult([]) as never);
+
+    // Google Text Search does NOT return "Hidden Gem"
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_other", name: "Other Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({}))
+      .mockResolvedValueOnce(makeTextSearchResponse([]));
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as { results: Array<{ placeId: string; name: string; sources: string[]; corroborationScore: number; rating: number | null }> };
+    const gem = json.results.find((r) => r.name === "Hidden Gem");
+    expect(gem).toBeDefined();
+    expect(gem!.placeId).toMatch(/^wg:/);
+    expect(gem!.sources).toEqual(["wanderlust-goat", "tabelog"]);
+    expect(gem!.corroborationScore).toBe(2);
+    expect(gem!.rating).toBeNull();
+  });
+
+  it("AE3: WG place without tabelog source is NOT promoted", async () => {
+    const { trip } = seedWorld(db);
+    vi.mocked(checkAvailability).mockResolvedValue(true);
+    vi.mocked(discoverGoat)
+      .mockResolvedValueOnce(makeWgResult([
+        makeWgPlace({ name: "WG Only Place", sources: ["google.places"] }),
+      ]) as never)
+      .mockResolvedValueOnce(makeWgResult([]) as never);
+
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([])) // Google returns nothing
+      .mockResolvedValueOnce(makeTextSearchResponse([]));
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as { results: Array<{ name: string }> };
+    expect(json.results.find((r) => r.name === "WG Only Place")).toBeUndefined();
+  });
+
+  it("repeat discovery run: WG+Tabelog synthetic placeId triggers onConflictDoUpdate, no duplicate rows", async () => {
+    const { trip } = seedWorld(db);
+    vi.mocked(checkAvailability).mockResolvedValue(true);
+
+    const wgResult = makeWgResult([
+      makeWgPlace({ name: "Hidden Gem", lat: 35.7001, lng: 139.5801, sources: ["tabelog"] }),
+    ]);
+
+    vi.mocked(discoverGoat)
+      .mockResolvedValue(wgResult as never);
+
+    global.fetch = vi.fn()
+      .mockResolvedValue(makeTextSearchResponse([])); // Google always returns nothing
+
+    await callPost(trip.id);
+    await callPost(trip.id);
+
+    // Only one row should exist in DB for the synthetic placeId
+    const { places: placesTable } = await import("@/db/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = db.select().from(placesTable).where(eq(placesTable.name, "Hidden Gem")).all();
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.placeId).toMatch(/^wg:/);
+  });
+
+  it("AE4: WG unavailable — wgAvailable false, no promotion", async () => {
+    const { trip } = seedWorld(db);
+    vi.mocked(checkAvailability).mockResolvedValue(false);
+
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_eat1", name: "Normal Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({}))
+      .mockResolvedValueOnce(makeTextSearchResponse([]));
+
+    const res = await callPost(trip.id);
+    const json = await res.json() as { wgAvailable: boolean; results: Array<{ placeId: string }> };
+
+    expect(json.wgAvailable).toBe(false);
+    expect(json.results.find((r) => r.placeId.startsWith("wg:"))).toBeUndefined();
+  });
+
+  it("partial WG failure: discoverGoat throws for eat, succeeds for visit — wgAvailable true, eat has no WG signal", async () => {
+    const { trip } = seedWorld(db);
+    vi.mocked(checkAvailability).mockResolvedValue(true);
+
+    // eat: throws; visit: succeeds with a tabelog candidate
+    vi.mocked(discoverGoat)
+      .mockRejectedValueOnce(new Error("WG timeout"))
+      .mockResolvedValueOnce(makeWgResult([
+        makeWgPlace({ name: "Park Cafe", lat: 35.7002, lng: 139.5802, sources: ["tabelog"] }),
+      ]) as never);
+
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_eat1", name: "Eat Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({})) // details for eat place
+      .mockResolvedValueOnce(makeTextSearchResponse([])); // visit text search: nothing from Google
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      wgAvailable: boolean;
+      results: Array<{ placeId: string; name: string; sources: string[] }>;
+    };
+
+    // wgDiscoverSucceeded set true on visit success despite eat failure
+    expect(json.wgAvailable).toBe(true);
+
+    // eat result has no WG corroboration (WG threw for eat category)
+    const eatPlace = json.results.find((r) => r.name === "Eat Place");
+    expect(eatPlace).toBeDefined();
+    expect(eatPlace!.sources).toEqual(["google-places-text-search"]);
+
+    // Park Cafe promoted via visit WG+Tabelog path
+    const parkCafe = json.results.find((r) => r.name === "Park Cafe");
+    expect(parkCafe).toBeDefined();
+    expect(parkCafe!.placeId).toMatch(/^wg:/);
+    expect(parkCafe!.sources).toEqual(["wanderlust-goat", "tabelog"]);
   });
 });
