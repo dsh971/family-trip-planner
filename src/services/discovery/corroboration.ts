@@ -25,10 +25,13 @@ export function namesMatch(a: string, b: string): boolean {
   return tokenOverlap(a, b) >= 0.6;
 }
 
-export function buildSources(placeName: string, wgNames: string[]): string[] {
+export function buildSources(placeName: string, wgNames: string[], tabelogNames: string[]): string[] {
   const sources: string[] = ["google-places-text-search"];
   if (wgNames.some((wgName) => namesMatch(placeName, wgName))) {
     sources.push("wanderlust-goat");
+  }
+  if (tabelogNames.some((tName) => namesMatch(placeName, tName))) {
+    sources.push("tabelog");
   }
   return sources;
 }

@@ -3,7 +3,7 @@ import { getDb } from "@/db/client";
 import { neighborhoods, safetyAreas, places, trips, familyProfiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { textSearchPlaces, getPlaceDetails } from "@/services/discovery/places";
-import { buildSources, corroborationScore } from "@/services/discovery/corroboration";
+import { buildSources, corroborationScore, namesMatch } from "@/services/discovery/corroboration";
 import {
   filterAndRankCandidates,
   annotateDistances,
@@ -14,7 +14,7 @@ import {
   discoverGoat,
   checkAvailability,
 } from "@/services/wanderlust-goat/client";
-import { WGUnavailableError } from "@/services/wanderlust-goat/types";
+import { WGPlace, WGUnavailableError } from "@/services/wanderlust-goat/types";
 
 // Concurrency-limited batch processor
 async function withConcurrencyLimit<T>(
@@ -82,8 +82,10 @@ export async function POST(request: Request) {
     // Stage 1: Google Places Text Search — structured place objects directly
     const textSearchResults = await textSearchPlaces(neighborhood.name, category);
 
-    // Stage 1b: WG CLI — corroboration signal only (WG-only places not added as candidates)
+    // Stage 1b: WG CLI — corroboration signal + Tabelog-confirmed candidate promotion
     const wgNames: string[] = [];
+    const tabelogNames: string[] = [];
+    const wgTabelogCandidates: WGPlace[] = [];
     if (wgInstalled) {
       try {
         const wgResult = await discoverGoat(
@@ -94,6 +96,10 @@ export async function POST(request: Request) {
         wgDiscoverSucceeded = true;
         for (const place of wgResult.results) {
           wgNames.push(place.name);
+          if (place.sources.includes("tabelog")) {
+            tabelogNames.push(place.name);
+            wgTabelogCandidates.push(place);
+          }
         }
       } catch (err) {
         if (!(err instanceof WGUnavailableError)) {
@@ -120,7 +126,7 @@ export async function POST(request: Request) {
       deduped,
       async (place) => {
         const details = await getPlaceDetails(place.placeId);
-        const sources = buildSources(place.name, wgNames);
+        const sources = buildSources(place.name, wgNames, tabelogNames);
         const score = corroborationScore(sources);
         const hours = details?.openingHours ?? [];
 
@@ -183,6 +189,65 @@ export async function POST(request: Request) {
       },
       8
     );
+
+    // Promote WG+Tabelog candidates with no Google match (inside category loop, before DB fallback)
+    const enrichedNames = enriched.map((e) => e.name);
+    for (const wgPlace of wgTabelogCandidates) {
+      if (enrichedNames.some((n) => namesMatch(n, wgPlace.name))) continue;
+      const syntheticPlaceId = `wg:${wgPlace.lat.toFixed(6)},${wgPlace.lng.toFixed(6)}`;
+      const promotedSources = ["wanderlust-goat", "tabelog"];
+      const promotedScore = corroborationScore(promotedSources);
+
+      db.insert(places)
+        .values({
+          placeId: syntheticPlaceId,
+          neighborhoodId: neighborhood.id,
+          name: wgPlace.name,
+          category,
+          lat: wgPlace.lat,
+          lng: wgPlace.lng,
+          rating: null,
+          reviewCount: null,
+          priceLevel: null,
+          types: [],
+          goodForChildren: null,
+          menuForChildren: null,
+          openingHours: [],
+          sources: promotedSources,
+          corroborationScore: promotedScore,
+          enrichedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: [places.placeId, places.neighborhoodId],
+          set: {
+            sources: promotedSources,
+            corroborationScore: promotedScore,
+            enrichedAt: new Date(),
+          },
+        })
+        .returning()
+        .all();
+
+      openingHoursMap.set(syntheticPlaceId, []);
+
+      enriched.push({
+        placeId: syntheticPlaceId,
+        name: wgPlace.name,
+        category,
+        lat: wgPlace.lat,
+        lng: wgPlace.lng,
+        rating: null,
+        reviewCount: null,
+        priceLevel: null,
+        types: [],
+        goodForChildren: null,
+        menuForChildren: null,
+        sources: promotedSources,
+        corroborationScore: promotedScore,
+        distanceFromCentroidMeters: 0,
+        worthTheDetour: false,
+      });
+    }
 
     if (enriched.length === 0) {
       // DB fallback: load cached places and restore openingHoursMap from stored data
