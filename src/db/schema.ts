@@ -158,7 +158,7 @@ export const places = sqliteTable(
     types: text("types", { mode: "json" }).$type<string[]>().notNull().default([]),
     goodForChildren: integer("good_for_children", { mode: "boolean" }),
     menuForChildren: integer("menu_for_children", { mode: "boolean" }),
-    // JSON: string[] — values: "google-places-text-search" | "wanderlust-goat"
+    // JSON: string[] — values: "google-places-text-search" | "wanderlust-goat" | "tabelog"
     sources: text("sources", { mode: "json" })
       .$type<string[]>()
       .notNull()
