@@ -36,6 +36,8 @@ interface DiscoveryPlace {
   corroborationScore: number;
   distanceFromCentroidMeters: number;
   worthTheDetour: boolean;
+  photoReference: string | null;
+  description: string | null;
   nearSafetyArea?: boolean;
   rankPosition: number;
 }

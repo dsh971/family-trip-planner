@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { neighborhoods, safetyAreas, places, trips, familyProfiles } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { textSearchPlaces, getPlaceDetails } from "@/services/discovery/places";
 import { buildSources, corroborationScore } from "@/services/discovery/corroboration";
 import {
@@ -145,6 +145,8 @@ export async function POST(request: Request) {
             corroborationScore: score,
             openingHours: hours,
             enrichedAt: new Date(),
+            photoReference: details?.photoReference ?? null,
+            description: details?.description ?? null,
           })
           .onConflictDoUpdate({
             target: [places.placeId, places.neighborhoodId],
@@ -156,6 +158,8 @@ export async function POST(request: Request) {
               corroborationScore: score,
               openingHours: hours,
               enrichedAt: new Date(),
+              photoReference: sql`excluded.photo_reference`,
+              description: sql`excluded.description`,
             },
           })
           .returning()
@@ -179,6 +183,8 @@ export async function POST(request: Request) {
           corroborationScore: score,
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
+          photoReference: details?.photoReference ?? null,
+          description: details?.description ?? null,
         });
       },
       8
@@ -212,6 +218,8 @@ export async function POST(request: Request) {
           corroborationScore: p.corroborationScore,
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
+          photoReference: p.photoReference ?? null,
+          description: p.description ?? null,
         });
       }
     }

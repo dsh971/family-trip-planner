@@ -236,4 +236,130 @@ describe("POST /api/discovery", () => {
     expect(placeIds).not.toContain("ChIJ_bar");
     expect(placeIds).toContain("ChIJ_ramen");
   });
+
+  it("photoReference from details is returned in API results", async () => {
+    const { trip } = seedWorld(db);
+
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_photo1", name: "Photo Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({
+        photos: [{ photo_reference: "ref-abc-123" }],
+      }))
+      .mockResolvedValueOnce(makeTextSearchResponse([])); // no visit results
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      results: Array<{ placeId: string; photoReference: string | null }>;
+    };
+    const place = json.results.find((r) => r.placeId === "ChIJ_photo1");
+    expect(place).toBeDefined();
+    expect(place!.photoReference).toBe("ref-abc-123");
+  });
+
+  it("description from editorial_summary is returned in API results", async () => {
+    const { trip } = seedWorld(db);
+
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_desc1", name: "Described Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({
+        editorial_summary: { overview: "A lovely family spot in Kichijoji." },
+      }))
+      .mockResolvedValueOnce(makeTextSearchResponse([])); // no visit results
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      results: Array<{ placeId: string; description: string | null }>;
+    };
+    const place = json.results.find((r) => r.placeId === "ChIJ_desc1");
+    expect(place).toBeDefined();
+    expect(place!.description).toBe("A lovely family spot in Kichijoji.");
+  });
+
+  it("place with null details (details API 404) has photoReference: null and description: null", async () => {
+    const { trip } = seedWorld(db);
+
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_nodetails", name: "No Details Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce({ ok: false, status: 404 } as Response) // details returns null
+      .mockResolvedValueOnce(makeTextSearchResponse([])); // no visit results
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      results: Array<{ placeId: string; photoReference: string | null; description: string | null }>;
+    };
+    const place = json.results.find((r) => r.placeId === "ChIJ_nodetails");
+    expect(place).toBeDefined();
+    expect(place!.photoReference).toBeNull();
+    expect(place!.description).toBeNull();
+  });
+
+  it("re-run (onConflictDoUpdate) updates photoReference and description when values differ", async () => {
+    const { trip, neighborhood } = seedWorld(db);
+
+    // First run: place has a photo reference
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_update1", name: "Updatable Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({
+        photos: [{ photo_reference: "ref-first" }],
+        editorial_summary: { overview: "First description." },
+      }))
+      .mockResolvedValueOnce(makeTextSearchResponse([]));
+
+    await callPost(trip.id);
+
+    // Verify first upsert persisted the data
+    const { places: placesTable } = await import("@/db/schema");
+    const { eq: eqFn } = await import("drizzle-orm");
+    const firstRow = db.select().from(placesTable)
+      .where(eqFn(placesTable.placeId, "ChIJ_update1"))
+      .all()[0];
+    expect(firstRow?.photoReference).toBe("ref-first");
+    expect(firstRow?.description).toBe("First description.");
+
+    // Second run: same place but updated photo reference and description
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([
+        makeTextSearchResult({ place_id: "ChIJ_update1", name: "Updatable Place", types: ["restaurant"] }),
+      ]))
+      .mockResolvedValueOnce(makeDetailsResponse({
+        photos: [{ photo_reference: "ref-updated" }],
+        editorial_summary: { overview: "Updated description." },
+      }))
+      .mockResolvedValueOnce(makeTextSearchResponse([]));
+
+    const res2 = await callPost(trip.id);
+    expect(res2.status).toBe(200);
+
+    const secondRow = db.select().from(placesTable)
+      .where(eqFn(placesTable.placeId, "ChIJ_update1"))
+      .all()[0];
+    expect(secondRow?.photoReference).toBe("ref-updated");
+    expect(secondRow?.description).toBe("Updated description.");
+
+    // Also verify the API response includes the updated values
+    const json2 = await res2.json() as {
+      results: Array<{ placeId: string; photoReference: string | null; description: string | null }>;
+    };
+    const place2 = json2.results.find((r) => r.placeId === "ChIJ_update1");
+    expect(place2).toBeDefined();
+    expect(place2!.photoReference).toBe("ref-updated");
+    expect(place2!.description).toBe("Updated description.");
+
+    // Suppress unused variable warning
+    void neighborhood;
+  });
 });
