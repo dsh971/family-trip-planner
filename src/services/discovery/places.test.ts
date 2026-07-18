@@ -186,4 +186,94 @@ describe("getPlaceDetails", () => {
     const details = await getPlaceDetails("ChIJ_timeout");
     expect(details).toBeNull();
   });
+
+  it("returns photoReference when photos array is present (happy path)", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "OK",
+        result: {
+          photos: [{ photo_reference: "Aap_uE_abc123" }],
+        },
+      }),
+    } as Response);
+
+    const details = await getPlaceDetails("ChIJ_with_photo");
+    expect(details).not.toBeNull();
+    expect(details!.photoReference).toBe("Aap_uE_abc123");
+  });
+
+  it("returns description when editorial_summary is present (happy path)", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "OK",
+        result: {
+          editorial_summary: { overview: "A lively ramen spot in Shinjuku." },
+        },
+      }),
+    } as Response);
+
+    const details = await getPlaceDetails("ChIJ_with_summary");
+    expect(details).not.toBeNull();
+    expect(details!.description).toBe("A lively ramen spot in Shinjuku.");
+  });
+
+  it("returns photoReference: null when photos key is absent", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "OK",
+        result: { child_friendly: true },
+      }),
+    } as Response);
+
+    const details = await getPlaceDetails("ChIJ_no_photos");
+    expect(details).not.toBeNull();
+    expect(details!.photoReference).toBeNull();
+  });
+
+  it("returns photoReference: null when photos is an empty array", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "OK",
+        result: { photos: [] },
+      }),
+    } as Response);
+
+    const details = await getPlaceDetails("ChIJ_empty_photos");
+    expect(details).not.toBeNull();
+    expect(details!.photoReference).toBeNull();
+  });
+
+  it("returns description: null when editorial_summary key is absent", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "OK",
+        result: { child_friendly: true },
+      }),
+    } as Response);
+
+    const details = await getPlaceDetails("ChIJ_no_summary");
+    expect(details).not.toBeNull();
+    expect(details!.description).toBeNull();
+  });
+
+  it("returns description: null when editorial_summary has no overview key", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "OK",
+        result: {
+          editorial_summary: {} as { overview: string },
+        },
+      }),
+    } as Response);
+
+    const details = await getPlaceDetails("ChIJ_empty_summary");
+    expect(details).not.toBeNull();
+    expect(details!.description).toBeNull();
+  });
 });

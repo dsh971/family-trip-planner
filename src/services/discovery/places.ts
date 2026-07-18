@@ -13,6 +13,8 @@ export interface PlaceDetails {
   goodForChildren: boolean | null;
   menuForChildren: boolean | null;
   openingHours: Array<{ startTime: string }>;
+  photoReference: string | null;
+  description: string | null;
 }
 
 interface TextSearchResponseItem {
@@ -38,6 +40,8 @@ interface DetailsResponse {
     opening_hours?: {
       periods: Array<{ open: { time: string } }>;
     };
+    photos?: Array<{ photo_reference: string }>;
+    editorial_summary?: { overview: string };
   };
 }
 
@@ -101,7 +105,7 @@ export async function getPlaceDetails(
     "https://maps.googleapis.com/maps/api/place/details/json"
   );
   url.searchParams.set("place_id", placeId);
-  url.searchParams.set("fields", "child_friendly,menu_for_children,opening_hours");
+  url.searchParams.set("fields", "child_friendly,menu_for_children,opening_hours,photos,editorial_summary");
   url.searchParams.set("key", apiKey);
 
   try {
@@ -126,6 +130,8 @@ export async function getPlaceDetails(
       goodForChildren: r.child_friendly ?? null,
       menuForChildren: r.menu_for_children ?? null,
       openingHours,
+      photoReference: r.photos?.[0]?.photo_reference ?? null,
+      description: r.editorial_summary?.overview ?? null,
     };
   } catch {
     return null;
