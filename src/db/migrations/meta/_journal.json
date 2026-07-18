@@ -22,6 +22,13 @@
       "when": 1783798302516,
       "tag": "0002_handy_slayback",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784359325714,
+      "tag": "0003_loving_warhawk",
+      "breakpoints": true
     }
   ]
 }

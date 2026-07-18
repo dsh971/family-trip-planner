@@ -172,6 +172,10 @@ export const places = sqliteTable(
       .default([]),
     // Timestamp when rating/reviewCount/location were last fetched
     enrichedAt: integer("enriched_at", { mode: "timestamp" }),
+    // Google Places photo reference token (for fetching photos on demand)
+    photoReference: text("photo_reference"),
+    // AI-generated or editorial description of the place
+    description: text("description"),
   },
   (table) => [uniqueIndex("places_place_id_neighborhood_idx").on(table.placeId, table.neighborhoodId)]
 );
