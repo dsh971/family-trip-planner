@@ -21,6 +21,8 @@ export interface DiscoveryCandidate {
   corroborationScore: number;
   distanceFromCentroidMeters: number;
   worthTheDetour: boolean;
+  photoReference: string | null;
+  description: string | null;
   // Populated by safety check
   nearSafetyArea?: boolean;
 }
