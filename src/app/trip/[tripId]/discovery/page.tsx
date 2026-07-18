@@ -319,7 +319,7 @@ export default function DiscoveryPage() {
             })}
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-4">
             {visiblePlaces.length === 0 ? (
               <EmptyState
                 title="No places yet"
