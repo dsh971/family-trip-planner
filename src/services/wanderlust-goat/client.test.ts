@@ -114,4 +114,85 @@ describe("U5: Wanderlust GOAT client", () => {
 
     expect(execMock).toHaveBeenCalledTimes(1);
   });
+
+  describe("U1: CLI flag correctness", () => {
+    it("happy path eat: uses --minutes, --criteria, --type; drops --radius, --select, --category", async () => {
+      execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
+
+      const { discoverGoat } = await import("./client");
+      await discoverGoat("Kichijoji", "eat", 400);
+
+      const callArgs = execMock.mock.calls[0]![1] as string[];
+
+      const minutesIdx = callArgs.indexOf("--minutes");
+      expect(minutesIdx).toBeGreaterThan(-1);
+      expect(callArgs[minutesIdx + 1]).toBe("5");
+
+      const criteriaIdx = callArgs.indexOf("--criteria");
+      expect(criteriaIdx).toBeGreaterThan(-1);
+      expect(callArgs[criteriaIdx + 1]).toBe("family restaurants");
+
+      const typeIdx = callArgs.indexOf("--type");
+      expect(typeIdx).toBeGreaterThan(-1);
+      expect(callArgs[typeIdx + 1]).toBe("restaurant");
+
+      expect(callArgs).not.toContain("--radius");
+      expect(callArgs).not.toContain("--select");
+      expect(callArgs).not.toContain("--category");
+    });
+
+    it("visit category: uses correct criteria and type", async () => {
+      execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
+
+      const { discoverGoat } = await import("./client");
+      await discoverGoat("Kichijoji", "visit", 400);
+
+      const callArgs = execMock.mock.calls[0]![1] as string[];
+
+      const criteriaIdx = callArgs.indexOf("--criteria");
+      expect(criteriaIdx).toBeGreaterThan(-1);
+      expect(callArgs[criteriaIdx + 1]).toBe("family activities and attractions");
+
+      const typeIdx = callArgs.indexOf("--type");
+      expect(typeIdx).toBeGreaterThan(-1);
+      expect(callArgs[typeIdx + 1]).toBe("tourist_attraction");
+    });
+
+    it("radius 1200m → 15 minutes", async () => {
+      execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
+
+      const { discoverGoat } = await import("./client");
+      await discoverGoat("Kichijoji", "eat", 1200);
+
+      const callArgs = execMock.mock.calls[0]![1] as string[];
+
+      const minutesIdx = callArgs.indexOf("--minutes");
+      expect(minutesIdx).toBeGreaterThan(-1);
+      expect(callArgs[minutesIdx + 1]).toBe("15");
+    });
+
+    it("radius 100m → clamped to 5 minutes minimum", async () => {
+      execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
+
+      const { discoverGoat } = await import("./client");
+      await discoverGoat("Kichijoji", "eat", 100);
+
+      const callArgs = execMock.mock.calls[0]![1] as string[];
+
+      const minutesIdx = callArgs.indexOf("--minutes");
+      expect(minutesIdx).toBeGreaterThan(-1);
+      expect(callArgs[minutesIdx + 1]).toBe("5");
+    });
+
+    it("cache key uses new flags: same computed walkingMinutes → single executor call", async () => {
+      execMock.mockResolvedValue({ stdout: goatFixture, stderr: "" });
+
+      const { discoverGoat } = await import("./client");
+      // 400m → round(400/80)=5, 390m → round(390/80)=round(4.875)=5 — same key
+      await discoverGoat("Kichijoji", "eat", 400);
+      await discoverGoat("Kichijoji", "eat", 390);
+
+      expect(execMock).toHaveBeenCalledTimes(1);
+    });
+  });
 });
