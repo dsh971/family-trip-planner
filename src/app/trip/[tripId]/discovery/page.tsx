@@ -134,11 +134,23 @@ function PlaceCard({
             : {}
       }
     >
-      <div
-        className="h-1 w-full rounded-t-lg"
-        style={{ background: categoryColor }}
-        aria-hidden="true"
-      />
+      {place.photoReference ? (
+        <img
+          src={`/api/places/photo?ref=${encodeURIComponent(place.photoReference)}&maxWidth=400`}
+          alt=""
+          style={{ height: "160px", width: "100%", objectFit: "cover", display: "block", borderRadius: "8px 8px 0 0" }}
+        />
+      ) : (
+        <>
+          <div className="h-1 w-full rounded-t-lg" style={{ background: categoryColor }} aria-hidden="true" />
+          <div
+            style={{ height: "160px", width: "100%", background: categoryColor, display: "flex", alignItems: "center", justifyContent: "center" }}
+            aria-hidden="true"
+          >
+            <span style={{ fontSize: "2rem" }}>{place.category === "eat" ? "🍽️" : "🏛️"}</span>
+          </div>
+        </>
+      )}
       <CardBody className="space-y-2 pt-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -153,6 +165,12 @@ function PlaceCard({
             {place.category === "eat" ? "Eat" : "Visit"}
           </Badge>
         </div>
+
+        {place.description && (
+          <p className="text-sm line-clamp-2" style={{ color: "var(--fg-3)" }}>
+            {place.description}
+          </p>
+        )}
 
         <div className="flex items-center gap-3 text-xs" style={{ color: "var(--fg-2)" }}>
           {place.rating !== null && (

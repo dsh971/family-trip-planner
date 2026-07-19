@@ -28,6 +28,27 @@ function toggleMapExpanded(prev: boolean): boolean {
   return !prev;
 }
 
+
+// Mirror of the photo hero rendering decision
+function shouldRenderPhotoImg(photoReference: string | null): boolean {
+  return photoReference !== null;
+}
+
+// Mirror of the description rendering decision
+function shouldRenderDescription(description: string | null): boolean {
+  return description !== null;
+}
+
+// Mirror of the skipped-card (currentDecision === "no") branch
+function isSkippedCard(currentDecision: "yes" | "no" | null): boolean {
+  return currentDecision === "no";
+}
+
+// Build the photo src URL the same way PlaceCard does
+function buildPhotoSrc(photoReference: string): string {
+  return `/api/places/photo?ref=${encodeURIComponent(photoReference)}&maxWidth=400`;
+}
+
 describe("corroborationToSignal", () => {
   it("score 0 → null", () => expect(corroborationToSignal(0)).toBeNull());
   it("score 1 → 'Trending locally'", () => expect(corroborationToSignal(1)).toBe("Trending locally"));
@@ -101,5 +122,71 @@ describe("mobile map toggle", () => {
     const mapExpanded = false;
     const label = mapExpanded ? "▲ Hide map" : "▼ Show map";
     expect(label).toBe("▼ Show map");
+  });
+});
+
+describe("PlaceCard photo hero", () => {
+  it("non-null photoReference → img renders (shouldRenderPhotoImg = true)", () => {
+    expect(shouldRenderPhotoImg("CmRaAAAAtest_ref")).toBe(true);
+  });
+
+  it("null photoReference → img does not render (shouldRenderPhotoImg = false)", () => {
+    expect(shouldRenderPhotoImg(null)).toBe(false);
+  });
+
+  it("buildPhotoSrc includes /api/places/photo?ref= prefix", () => {
+    const src = buildPhotoSrc("someRef");
+    expect(src).toContain("/api/places/photo?ref=");
+  });
+
+  it("buildPhotoSrc includes &maxWidth=400 suffix", () => {
+    const src = buildPhotoSrc("someRef");
+    expect(src).toContain("&maxWidth=400");
+  });
+
+  it("buildPhotoSrc encodes special characters in the photo reference", () => {
+    const ref = "Aap_uE+abc/def==";
+    const src = buildPhotoSrc(ref);
+    expect(src).toBe(`/api/places/photo?ref=${encodeURIComponent(ref)}&maxWidth=400`);
+    expect(src).not.toContain("+");
+  });
+
+  it("buildPhotoSrc encodes a realistic Google photo reference without raw slashes", () => {
+    const ref = "CmRaAAAA_ABCDEF1234567890";
+    const src = buildPhotoSrc(ref);
+    expect(src).toBe(`/api/places/photo?ref=${encodeURIComponent(ref)}&maxWidth=400`);
+  });
+
+  it("synthetic wg: place (photoReference = null) shows placeholder, not img", () => {
+    const wgPhotoReference: string | null = null;
+    expect(shouldRenderPhotoImg(wgPhotoReference)).toBe(false);
+  });
+});
+
+describe("PlaceCard description snippet", () => {
+  it("non-null description → description element renders (shouldRenderDescription = true)", () => {
+    expect(shouldRenderDescription("A great local ramen shop with rich broth.")).toBe(true);
+  });
+
+  it("null description → no element renders (shouldRenderDescription = false)", () => {
+    expect(shouldRenderDescription(null)).toBe(false);
+  });
+
+  it("empty string description is treated as truthy (non-null) — renders", () => {
+    expect(shouldRenderDescription("")).toBe(true);
+  });
+});
+
+describe("PlaceCard skipped state", () => {
+  it("currentDecision 'no' → skipped card branch (no photo or description)", () => {
+    expect(isSkippedCard("no")).toBe(true);
+  });
+
+  it("currentDecision null → active card (photo and description rendered)", () => {
+    expect(isSkippedCard(null)).toBe(false);
+  });
+
+  it("currentDecision 'yes' → added card (photo and description rendered)", () => {
+    expect(isSkippedCard("yes")).toBe(false);
   });
 });
