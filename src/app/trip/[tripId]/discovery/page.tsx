@@ -203,6 +203,7 @@ function PlaceCard({
               variant="primary"
               size="sm"
               className="flex-1"
+              style={{ minHeight: "44px" }}
               onClick={() => onDecide(place.placeId, "yes", place.worthTheDetour)}
             >
               Add to list
@@ -211,6 +212,7 @@ function PlaceCard({
               variant="ghost"
               size="sm"
               className="flex-1"
+              style={{ minHeight: "44px" }}
               onClick={() => onDecide(place.placeId, "no", place.worthTheDetour)}
             >
               Skip
@@ -376,7 +378,13 @@ export default function DiscoveryPage() {
                 {visiblePlaces.length === 0 ? (
                   <EmptyState
                     title="No places yet"
-                    description="Nothing found in this category."
+                    description={
+                      activeFilter === "eat"
+                        ? "No restaurants found here — try the All filter."
+                        : activeFilter === "visit"
+                          ? "No activities found here — try the All filter."
+                          : "Nothing found in this category."
+                    }
                   />
                 ) : (
                   visiblePlaces.map((place) => (

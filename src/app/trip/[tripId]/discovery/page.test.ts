@@ -28,25 +28,28 @@ function toggleMapExpanded(prev: boolean): boolean {
   return !prev;
 }
 
-
-// Mirror of the photo hero rendering decision
 function shouldRenderPhotoImg(photoReference: string | null): boolean {
   return photoReference !== null;
 }
 
-// Mirror of the description rendering decision
 function shouldRenderDescription(description: string | null): boolean {
   return description !== null;
 }
 
-// Mirror of the skipped-card (currentDecision === "no") branch
 function isSkippedCard(currentDecision: "yes" | "no" | null): boolean {
   return currentDecision === "no";
 }
 
-// Build the photo src URL the same way PlaceCard does
 function buildPhotoSrc(photoReference: string): string {
   return `/api/places/photo?ref=${encodeURIComponent(photoReference)}&maxWidth=400`;
+}
+
+function getEmptyStateDescription(activeFilter: "all" | "eat" | "visit"): string {
+  return activeFilter === "eat"
+    ? "No restaurants found here — try the All filter."
+    : activeFilter === "visit"
+      ? "No activities found here — try the All filter."
+      : "Nothing found in this category.";
 }
 
 describe("corroborationToSignal", () => {
@@ -188,5 +191,17 @@ describe("PlaceCard skipped state", () => {
 
   it("currentDecision 'yes' → added card (photo and description rendered)", () => {
     expect(isSkippedCard("yes")).toBe(false);
+  });
+});
+
+describe("getEmptyStateDescription", () => {
+  it("'eat' filter → no restaurants message", () => {
+    expect(getEmptyStateDescription("eat")).toBe("No restaurants found here — try the All filter.");
+  });
+  it("'visit' filter → no activities message", () => {
+    expect(getEmptyStateDescription("visit")).toBe("No activities found here — try the All filter.");
+  });
+  it("'all' filter → generic message", () => {
+    expect(getEmptyStateDescription("all")).toBe("Nothing found in this category.");
   });
 });
