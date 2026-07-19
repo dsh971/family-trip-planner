@@ -10,6 +10,14 @@ function metersToMinutes(meters: number): string {
   return `~${Math.max(5, Math.round(meters / 80 / 5) * 5)}-min walk`;
 }
 
+function getEmptyStateDescription(activeFilter: "all" | "eat" | "visit"): string {
+  return activeFilter === "eat"
+    ? "No restaurants found here — try the All filter."
+    : activeFilter === "visit"
+      ? "No activities found here — try the All filter."
+      : "Nothing found in this category.";
+}
+
 describe("corroborationToSignal", () => {
   it("score 0 → null", () => expect(corroborationToSignal(0)).toBeNull());
   it("score 1 → 'Trending locally'", () => expect(corroborationToSignal(1)).toBe("Trending locally"));
@@ -20,4 +28,16 @@ describe("corroborationToSignal", () => {
 describe("metersToMinutes", () => {
   it("1200m → ~15-min walk", () => expect(metersToMinutes(1200)).toBe("~15-min walk"));
   it("200m → ~5-min walk (minimum floor)", () => expect(metersToMinutes(200)).toBe("~5-min walk"));
+});
+
+describe("getEmptyStateDescription", () => {
+  it("'eat' filter → no restaurants message", () => {
+    expect(getEmptyStateDescription("eat")).toBe("No restaurants found here — try the All filter.");
+  });
+  it("'visit' filter → no activities message", () => {
+    expect(getEmptyStateDescription("visit")).toBe("No activities found here — try the All filter.");
+  });
+  it("'all' filter → generic message", () => {
+    expect(getEmptyStateDescription("all")).toBe("Nothing found in this category.");
+  });
 });
