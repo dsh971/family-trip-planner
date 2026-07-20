@@ -65,6 +65,7 @@ export default function ProfilePage() {
   ]);
   const [hotelName, setHotelName] = useState("");
   const [hotelAddress, setHotelAddress] = useState("");
+  const [staysEntireTrip, setStaysEntireTrip] = useState(true);
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +106,7 @@ export default function ProfilePage() {
           startDate: startDate ?? "",
           endDate: endDate ?? "",
           hotelName: hotelName || undefined,
-          hotelAddress: hotelAddress || undefined,
+          hotelAddress: (hotelAddress && staysEntireTrip) ? hotelAddress : undefined,
         }),
       });
 
@@ -321,6 +322,25 @@ export default function ProfilePage() {
                 onChange={(e) => setHotelAddress(e.target.value)}
                 placeholder="e.g. 3-7-1-2 Nishi Shinjuku"
               />
+              {hotelName && (
+                <label
+                  className="flex items-start gap-2 cursor-pointer"
+                  style={{ paddingTop: "4px" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={staysEntireTrip}
+                    onChange={(e) => setStaysEntireTrip(e.target.checked)}
+                    style={{ marginTop: "2px", accentColor: "var(--accent)", flexShrink: 0 }}
+                  />
+                  <span className="text-sm" style={{ color: "var(--fg-2)" }}>
+                    We'll be staying here for the whole trip
+                    <span className="block text-xs mt-0.5" style={{ color: "var(--fg-3)" }}>
+                      Uncheck if you have multiple accommodations — we'll use the neighborhood center for distance estimates instead.
+                    </span>
+                  </span>
+                </label>
+              )}
             </CardBody>
           </Card>
 
