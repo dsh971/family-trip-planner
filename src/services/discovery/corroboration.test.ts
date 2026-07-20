@@ -47,16 +47,49 @@ describe("namesMatch", () => {
 
 describe("buildSources", () => {
   it("includes wanderlust-goat when a WG name matches", () => {
-    expect(buildSources("Musashino-en", ["Musashino En"])).toEqual([
+    expect(buildSources("Musashino-en", ["Musashino En"], [])).toEqual([
       "google-places-text-search",
       "wanderlust-goat",
     ]);
   });
 
   it("returns only google-places-text-search when no WG name matches", () => {
-    expect(buildSources("Ramen Nagi", ["Tonkotsu House"])).toEqual([
+    expect(buildSources("Ramen Nagi", ["Tonkotsu House"], [])).toEqual([
       "google-places-text-search",
     ]);
+  });
+
+  it("returns only google-places-text-search when both wgNames and tabelogNames are empty", () => {
+    expect(buildSources("Ramen Nagi", [], [])).toEqual([
+      "google-places-text-search",
+    ]);
+  });
+
+  it("returns score 2 when only wgNames matches", () => {
+    const sources = buildSources("Ramen Nagi", ["Ramen Nagi"], []);
+    expect(sources).toContain("wanderlust-goat");
+    expect(sources).toHaveLength(2);
+  });
+
+  it("returns all three sources (score 3) when both wgNames and tabelogNames match", () => {
+    expect(buildSources("Ramen Nagi", ["Ramen Nagi"], ["Ramen Nagi"])).toEqual([
+      "google-places-text-search",
+      "wanderlust-goat",
+      "tabelog",
+    ]);
+  });
+
+  it("includes tabelog but not wanderlust-goat when only tabelogNames matches", () => {
+    const sources = buildSources("Ramen Nagi", [], ["Ramen Nagi"]);
+    expect(sources).toContain("tabelog");
+    expect(sources).not.toContain("wanderlust-goat");
+    expect(sources).toEqual(["google-places-text-search", "tabelog"]);
+  });
+
+  it("includes tabelog but not wanderlust-goat when wgNames does not match", () => {
+    const sources = buildSources("Ramen Nagi", ["Unrelated Place"], ["Ramen Nagi"]);
+    expect(sources).toContain("tabelog");
+    expect(sources).not.toContain("wanderlust-goat");
   });
 });
 
@@ -69,5 +102,11 @@ describe("corroborationScore", () => {
 
   it("returns 1 when only google-places-text-search present", () => {
     expect(corroborationScore(["google-places-text-search"])).toBe(1);
+  });
+
+  it("returns 3 when all three sources present", () => {
+    expect(
+      corroborationScore(["google-places-text-search", "wanderlust-goat", "tabelog"])
+    ).toBe(3);
   });
 });
