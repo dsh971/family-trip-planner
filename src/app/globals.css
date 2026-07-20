@@ -27,6 +27,60 @@ body {
   min-height: 100vh;
 }
 
+/*
+  Map split-pane layouts — plain CSS instead of Tailwind to avoid the
+  @source scanning limitation noted above (arbitrary values not generated).
+  discovery-layout and neighborhood-layout stack on mobile, go side-by-side
+  (map right, cards left) on desktop via flex-row-reverse.
+*/
+.discovery-layout,
+.neighborhood-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.discovery-map-col,
+.neighborhood-map-col {
+  border-radius: 12px;
+  overflow: hidden;
+  height: 50vh;
+  min-height: 280px;
+}
+
+.discovery-card-col,
+.neighborhood-card-col {
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .discovery-layout,
+  .neighborhood-layout {
+    flex-direction: row-reverse;
+    align-items: flex-start;
+  }
+
+  .discovery-map-col,
+  .neighborhood-map-col {
+    width: 60%;
+    flex-shrink: 0;
+    position: sticky;
+    top: 60px;
+    height: 70vh;
+    display: block !important;
+  }
+
+  .discovery-card-col,
+  .neighborhood-card-col {
+    width: 40%;
+    display: block !important;
+  }
+
+  .neighborhood-mobile-toggle {
+    display: none;
+  }
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;

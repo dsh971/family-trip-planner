@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { neighborhoods, safetyAreas, places, trips, familyProfiles } from "@/db/schema";
-import { eq } from "drizzle-orm";
-import { textSearchPlaces, getPlaceDetails } from "@/services/discovery/places";
+import { eq, sql } from "drizzle-orm";
+import { textSearchPlaces, getPlaceDetails, findNearbyTransitStations, type TransitStation } from "@/services/discovery/places";
 import { buildSources, corroborationScore, namesMatch } from "@/services/discovery/corroboration";
 import {
   filterAndRankCandidates,
@@ -151,6 +151,7 @@ export async function POST(request: Request) {
             corroborationScore: score,
             openingHours: hours,
             enrichedAt: new Date(),
+            description: details?.description ?? null,
           })
           .onConflictDoUpdate({
             target: [places.placeId, places.neighborhoodId],
@@ -162,6 +163,7 @@ export async function POST(request: Request) {
               corroborationScore: score,
               openingHours: hours,
               enrichedAt: new Date(),
+              description: sql`excluded.description`,
             },
           })
           .returning()
@@ -185,6 +187,8 @@ export async function POST(request: Request) {
           corroborationScore: score,
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
+          photoReference: place.photoReference ?? null,
+          description: details?.description ?? null,
         });
       },
       8
@@ -246,6 +250,8 @@ export async function POST(request: Request) {
         corroborationScore: promotedScore,
         distanceFromCentroidMeters: 0,
         worthTheDetour: false,
+        photoReference: null,
+        description: null,
       });
     }
 
@@ -277,6 +283,8 @@ export async function POST(request: Request) {
           corroborationScore: p.corroborationScore,
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
+          photoReference: null,
+          description: p.description ?? null,
         });
       }
     }
@@ -305,10 +313,18 @@ export async function POST(request: Request) {
     openingHoursMap
   );
 
+  const transitStations = await findNearbyTransitStations(
+    neighborhood.centroidLat,
+    neighborhood.centroidLng
+  );
+
   return NextResponse.json({
     neighborhoodId: neighborhood.id,
     neighborhoodName: neighborhood.name,
     results: filtered,
     wgAvailable: wgDiscoverSucceeded,
+    lodgingLat: trip.lodgingAnchorLat ?? null,
+    lodgingLng: trip.lodgingAnchorLng ?? null,
+    transitStations,
   });
 }

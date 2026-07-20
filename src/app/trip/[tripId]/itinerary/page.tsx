@@ -136,14 +136,21 @@ function DaySection({ day }: { day: DayResponse }) {
     }, 0);
 
   return (
-    <div className="mb-8" id={day.date}>
-      <div className="flex items-center justify-between mb-4">
-        <h2
-          className="text-xs font-semibold uppercase tracking-widest"
-          style={{ color: "var(--fg-3)" }}
+    <div className="mb-4" id={day.date}>
+      <div className="flex items-center justify-between mb-3">
+        {/* Use div not h2 — sumiui applies display font + large size to h2 globally */}
+        <div
+          style={{
+            fontFamily: "var(--font-sans)",
+            fontSize: "0.6875rem",
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: "var(--fg-3)",
+          }}
         >
           {formatDate(day.date)}
-        </h2>
+        </div>
         <div className="flex items-center gap-3 text-xs" style={{ color: "var(--fg-3)" }}>
           {placeCount > 0 && <span>{placeCount} place{placeCount !== 1 ? "s" : ""}</span>}
           {walkMinutes > 0 && <span>{walkMinutes} min walk</span>}
@@ -228,7 +235,7 @@ export default function ItineraryPage() {
     return (
       <main className="max-w-lg mx-auto p-4 space-y-4">
         <div className="mb-4">
-          <StepProgress currentStep="plan" />
+          <StepProgress currentStep="plan" tripId={params.tripId} />
         </div>
         <div>
           <h1

@@ -26,6 +26,8 @@ const baseCandidate: DiscoveryCandidate = {
   corroborationScore: 0,
   distanceFromCentroidMeters: 400,
   worthTheDetour: false,
+  photoReference: null,
+  description: null,
 };
 
 const baseProfile: Pick<FamilyProfile, "dietaryTags" | "accessibilityTags" | "pacingWindows"> = {
