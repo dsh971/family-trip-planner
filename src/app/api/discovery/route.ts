@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { neighborhoods, safetyAreas, places, trips, familyProfiles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { textSearchPlaces, getPlaceDetails } from "@/services/discovery/places";
+import { textSearchPlaces, getPlaceDetails, findNearbyTransitStations, type TransitStation } from "@/services/discovery/places";
 import { buildSources, corroborationScore } from "@/services/discovery/corroboration";
 import {
   filterAndRankCandidates,
@@ -145,7 +145,6 @@ export async function POST(request: Request) {
             corroborationScore: score,
             openingHours: hours,
             enrichedAt: new Date(),
-            photoReference: details?.photoReference ?? null,
             description: details?.description ?? null,
           })
           .onConflictDoUpdate({
@@ -158,7 +157,6 @@ export async function POST(request: Request) {
               corroborationScore: score,
               openingHours: hours,
               enrichedAt: new Date(),
-              photoReference: sql`excluded.photo_reference`,
               description: sql`excluded.description`,
             },
           })
@@ -183,7 +181,7 @@ export async function POST(request: Request) {
           corroborationScore: score,
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
-          photoReference: details?.photoReference ?? null,
+          photoReference: place.photoReference ?? null,
           description: details?.description ?? null,
         });
       },
@@ -218,7 +216,7 @@ export async function POST(request: Request) {
           corroborationScore: p.corroborationScore,
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
-          photoReference: p.photoReference ?? null,
+          photoReference: null,
           description: p.description ?? null,
         });
       }
@@ -248,10 +246,18 @@ export async function POST(request: Request) {
     openingHoursMap
   );
 
+  const transitStations = await findNearbyTransitStations(
+    neighborhood.centroidLat,
+    neighborhood.centroidLng
+  );
+
   return NextResponse.json({
     neighborhoodId: neighborhood.id,
     neighborhoodName: neighborhood.name,
     results: filtered,
     wgAvailable: wgDiscoverSucceeded,
+    lodgingLat: trip.lodgingAnchorLat ?? null,
+    lodgingLng: trip.lodgingAnchorLng ?? null,
+    transitStations,
   });
 }

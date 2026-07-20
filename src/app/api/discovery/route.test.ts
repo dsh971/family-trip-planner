@@ -30,6 +30,7 @@ vi.mock("@/services/wanderlust-goat/client", () => ({
 function makeTextSearchResult(overrides: Partial<{
   place_id: string; name: string; lat: number; lng: number;
   rating: number; user_ratings_total: number; price_level: number; types: string[];
+  photo_reference: string;
 }> = {}) {
   return {
     place_id: overrides.place_id ?? "ChIJ_default",
@@ -44,8 +45,10 @@ function makeTextSearchResult(overrides: Partial<{
     user_ratings_total: overrides.user_ratings_total ?? 200,
     price_level: overrides.price_level ?? 2,
     types: overrides.types ?? ["restaurant"],
+    ...(overrides.photo_reference ? { photos: [{ photo_reference: overrides.photo_reference }] } : {}),
   };
 }
+
 
 function makeTextSearchResponse(items: ReturnType<typeof makeTextSearchResult>[]) {
   return {
@@ -237,17 +240,15 @@ describe("POST /api/discovery", () => {
     expect(placeIds).toContain("ChIJ_ramen");
   });
 
-  it("photoReference from details is returned in API results", async () => {
+  it("photoReference from text search is passed through in API results", async () => {
     const { trip } = seedWorld(db);
 
     global.fetch = vi.fn()
       .mockResolvedValueOnce(makeTextSearchResponse([
-        makeTextSearchResult({ place_id: "ChIJ_photo1", name: "Photo Place", types: ["restaurant"] }),
+        makeTextSearchResult({ place_id: "ChIJ_photo1", name: "Photo Place", types: ["restaurant"], photo_reference: "ref-abc-123" }),
       ]))
-      .mockResolvedValueOnce(makeDetailsResponse({
-        photos: [{ photo_reference: "ref-abc-123" }],
-      }))
-      .mockResolvedValueOnce(makeTextSearchResponse([])); // no visit results
+      .mockResolvedValueOnce(makeDetailsResponse({}))
+      .mockResolvedValueOnce(makeTextSearchResponse([]));
 
     const res = await callPost(trip.id);
     expect(res.status).toBe(200);
@@ -283,7 +284,7 @@ describe("POST /api/discovery", () => {
     expect(place!.description).toBe("A lovely family spot in Kichijoji.");
   });
 
-  it("place with null details (details API 404) has photoReference: null and description: null", async () => {
+  it("place with no photo in text search has photoReference: null and description: null when details fail", async () => {
     const { trip } = seedWorld(db);
 
     global.fetch = vi.fn()
@@ -291,7 +292,7 @@ describe("POST /api/discovery", () => {
         makeTextSearchResult({ place_id: "ChIJ_nodetails", name: "No Details Place", types: ["restaurant"] }),
       ]))
       .mockResolvedValueOnce({ ok: false, status: 404 } as Response) // details returns null
-      .mockResolvedValueOnce(makeTextSearchResponse([])); // no visit results
+      .mockResolvedValueOnce(makeTextSearchResponse([]));
 
     const res = await callPost(trip.id);
     expect(res.status).toBe(200);
@@ -305,40 +306,107 @@ describe("POST /api/discovery", () => {
     expect(place!.description).toBeNull();
   });
 
-  it("re-run (onConflictDoUpdate) updates photoReference and description when values differ", async () => {
+  it("trip with hotel: response includes transitStations from Nearby Search", async () => {
+    const { dest, profile, neighborhood } = seedWorld(db);
+
+    // Insert a trip with hotel/lodging coords
+    const tripWithHotel = db
+      .insert(schema.trips)
+      .values({
+        familyProfileId: profile.id,
+        destinationId: dest.id,
+        selectedNeighborhoodId: neighborhood.id,
+        startDate: "2026-09-01",
+        endDate: "2026-09-04",
+        status: "Discovery",
+        lodgingAnchorLat: 35.700,
+        lodgingAnchorLng: 139.590,
+        lodgingAnchorAddress: "Park Hyatt Tokyo",
+      })
+      .returning()
+      .all()[0]!;
+
+    // Fetch sequence: eatTextSearch, eatDetails, visitTextSearch, NearbySearch(transit)
+    global.fetch = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([])) // eat
+      .mockResolvedValueOnce(makeTextSearchResponse([])) // visit
+      .mockResolvedValueOnce({                           // transit Nearby Search
+        ok: true,
+        json: async () => ({
+          status: "OK",
+          results: [
+            { place_id: "ts1", name: "Kichijoji Station", geometry: { location: { lat: 35.702, lng: 139.580 } } },
+            { place_id: "ts2", name: "Inokashira-Koen Station", geometry: { location: { lat: 35.699, lng: 139.576 } } },
+          ],
+        }),
+      } as Response);
+
+    const res = await callPost(tripWithHotel.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as {
+      transitStations: Array<{ placeId: string; name: string; lat: number; lng: number }>;
+    };
+    expect(json.transitStations).toHaveLength(2);
+    expect(json.transitStations[0]!.name).toBe("Kichijoji Station");
+    expect(json.transitStations[0]!.placeId).toBe("ts1");
+  });
+
+  it("trip without hotel: Nearby Search is called and transitStations are returned", async () => {
+    const { trip } = seedWorld(db);
+
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce(makeTextSearchResponse([]))   // eat
+      .mockResolvedValueOnce(makeTextSearchResponse([]))   // visit
+      .mockResolvedValueOnce({                             // transit Nearby Search
+        ok: true,
+        json: async () => ({
+          status: "OK",
+          results: [
+            { place_id: "ts1", name: "Kichijoji Station", geometry: { location: { lat: 35.702, lng: 139.580 } } },
+          ],
+        }),
+      } as Response);
+    global.fetch = fetchSpy;
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as { transitStations: Array<{ placeId: string; name: string }> };
+    expect(json.transitStations).toHaveLength(1);
+    expect(json.transitStations[0]!.name).toBe("Kichijoji Station");
+
+    // 2 Text Search calls + 1 Nearby Search call
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("re-run (onConflictDoUpdate) updates description and returns latest photoReference", async () => {
     const { trip, neighborhood } = seedWorld(db);
 
-    // First run: place has a photo reference
+    // First run
     global.fetch = vi.fn()
       .mockResolvedValueOnce(makeTextSearchResponse([
-        makeTextSearchResult({ place_id: "ChIJ_update1", name: "Updatable Place", types: ["restaurant"] }),
+        makeTextSearchResult({ place_id: "ChIJ_update1", name: "Updatable Place", types: ["restaurant"], photo_reference: "ref-first" }),
       ]))
-      .mockResolvedValueOnce(makeDetailsResponse({
-        photos: [{ photo_reference: "ref-first" }],
-        editorial_summary: { overview: "First description." },
-      }))
+      .mockResolvedValueOnce(makeDetailsResponse({ editorial_summary: { overview: "First description." } }))
       .mockResolvedValueOnce(makeTextSearchResponse([]));
 
     await callPost(trip.id);
 
-    // Verify first upsert persisted the data
+    // Verify first upsert persisted the description
     const { places: placesTable } = await import("@/db/schema");
     const { eq: eqFn } = await import("drizzle-orm");
     const firstRow = db.select().from(placesTable)
       .where(eqFn(placesTable.placeId, "ChIJ_update1"))
       .all()[0];
-    expect(firstRow?.photoReference).toBe("ref-first");
     expect(firstRow?.description).toBe("First description.");
 
     // Second run: same place but updated photo reference and description
     global.fetch = vi.fn()
       .mockResolvedValueOnce(makeTextSearchResponse([
-        makeTextSearchResult({ place_id: "ChIJ_update1", name: "Updatable Place", types: ["restaurant"] }),
+        makeTextSearchResult({ place_id: "ChIJ_update1", name: "Updatable Place", types: ["restaurant"], photo_reference: "ref-updated" }),
       ]))
-      .mockResolvedValueOnce(makeDetailsResponse({
-        photos: [{ photo_reference: "ref-updated" }],
-        editorial_summary: { overview: "Updated description." },
-      }))
+      .mockResolvedValueOnce(makeDetailsResponse({ editorial_summary: { overview: "Updated description." } }))
       .mockResolvedValueOnce(makeTextSearchResponse([]));
 
     const res2 = await callPost(trip.id);
@@ -347,10 +415,8 @@ describe("POST /api/discovery", () => {
     const secondRow = db.select().from(placesTable)
       .where(eqFn(placesTable.placeId, "ChIJ_update1"))
       .all()[0];
-    expect(secondRow?.photoReference).toBe("ref-updated");
     expect(secondRow?.description).toBe("Updated description.");
 
-    // Also verify the API response includes the updated values
     const json2 = await res2.json() as {
       results: Array<{ placeId: string; photoReference: string | null; description: string | null }>;
     };
@@ -359,7 +425,6 @@ describe("POST /api/discovery", () => {
     expect(place2!.photoReference).toBe("ref-updated");
     expect(place2!.description).toBe("Updated description.");
 
-    // Suppress unused variable warning
     void neighborhood;
   });
 });

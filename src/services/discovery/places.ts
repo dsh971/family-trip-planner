@@ -7,14 +7,32 @@ export interface PlaceTextSearchResult {
   reviewCount: number | null;
   priceLevel: number | null;
   types: string[];
+  photoReference: string | null;
 }
 
 export interface PlaceDetails {
   goodForChildren: boolean | null;
   menuForChildren: boolean | null;
   openingHours: Array<{ startTime: string }>;
-  photoReference: string | null;
   description: string | null;
+}
+
+export interface TransitStation {
+  placeId: string;
+  name: string;
+  lat: number;
+  lng: number;
+}
+
+interface NearbySearchResponseItem {
+  place_id: string;
+  name: string;
+  geometry: { location: { lat: number; lng: number } };
+}
+
+interface NearbySearchResponse {
+  status: string;
+  results: NearbySearchResponseItem[];
 }
 
 interface TextSearchResponseItem {
@@ -25,6 +43,7 @@ interface TextSearchResponseItem {
   user_ratings_total?: number;
   price_level?: number;
   types?: string[];
+  photos?: Array<{ photo_reference: string }>;
 }
 
 interface TextSearchResponse {
@@ -40,7 +59,6 @@ interface DetailsResponse {
     opening_hours?: {
       periods: Array<{ open: { time: string } }>;
     };
-    photos?: Array<{ photo_reference: string }>;
     editorial_summary?: { overview: string };
   };
 }
@@ -88,6 +106,7 @@ export async function textSearchPlaces(
       reviewCount: r.user_ratings_total ?? null,
       priceLevel: r.price_level ?? null,
       types: r.types ?? [],
+      photoReference: r.photos?.[0]?.photo_reference ?? null,
     }));
   } catch {
     console.warn(`[TextSearch] network error for ${neighborhoodName}`);
@@ -105,7 +124,7 @@ export async function getPlaceDetails(
     "https://maps.googleapis.com/maps/api/place/details/json"
   );
   url.searchParams.set("place_id", placeId);
-  url.searchParams.set("fields", "child_friendly,menu_for_children,opening_hours,photos,editorial_summary");
+  url.searchParams.set("fields", "child_friendly,menu_for_children,opening_hours,editorial_summary");
   url.searchParams.set("key", apiKey);
 
   try {
@@ -130,9 +149,63 @@ export async function getPlaceDetails(
       goodForChildren: r.child_friendly ?? null,
       menuForChildren: r.menu_for_children ?? null,
       openingHours,
-      photoReference: r.photos?.[0]?.photo_reference ?? null,
       description: r.editorial_summary?.overview ?? null,
     };
+  } catch {
+    return null;
+  }
+}
+
+export async function findNearbyTransitStations(
+  lat: number,
+  lng: number
+): Promise<TransitStation[]> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return [];
+
+  const url = new URL(
+    "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+  );
+  url.searchParams.set("location", `${lat},${lng}`);
+  url.searchParams.set("rankby", "distance");
+  url.searchParams.set("type", "transit_station");
+  url.searchParams.set("key", apiKey);
+
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) return [];
+
+    const json = (await res.json()) as NearbySearchResponse;
+    if (!json.results || json.results.length === 0) return [];
+
+    return json.results.slice(0, 5).map((r) => ({
+      placeId: r.place_id,
+      name: r.name,
+      lat: r.geometry.location.lat,
+      lng: r.geometry.location.lng,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function resolvePhotoUrl(
+  photoReference: string,
+  maxWidth: number = 400
+): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+
+  const url = new URL("https://maps.googleapis.com/maps/api/place/photo");
+  url.searchParams.set("photoreference", photoReference);
+  url.searchParams.set("maxwidth", String(maxWidth));
+  url.searchParams.set("key", apiKey);
+
+  try {
+    // redirect:"manual" returns the 302 response without following it.
+    // Reading only the Location header avoids downloading the full image body.
+    const res = await fetch(url.toString(), { redirect: "manual" });
+    return res.headers.get("location");
   } catch {
     return null;
   }
