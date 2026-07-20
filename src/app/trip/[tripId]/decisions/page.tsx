@@ -86,7 +86,7 @@ export default function DecisionsPage() {
   return (
     <main className="max-w-lg mx-auto p-4 space-y-4 pb-24">
       <div className="mb-4">
-        <StepProgress currentStep="discover" />
+        <StepProgress currentStep="discover" tripId={params.tripId} />
       </div>
 
       <div>
@@ -99,25 +99,25 @@ export default function DecisionsPage() {
         <p className="text-sm mt-0.5" style={{ color: "var(--fg-2)" }}>
           Adjust your list here, then build your schedule.
         </p>
-
-        {/* Stat chips */}
-        {decisions.length > 0 && (
-          <div className="flex gap-2 mt-2">
-            <span
-              className="rounded-full px-3 py-1 text-sm"
-              style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
-            >
-              <span aria-hidden="true">🍜 </span>{countEat} restaurant{countEat !== 1 ? "s" : ""}
-            </span>
-            <span
-              className="rounded-full px-3 py-1 text-sm"
-              style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
-            >
-              <span aria-hidden="true">🏛 </span>{countVisit} {countVisit !== 1 ? "activities" : "activity"}
-            </span>
-          </div>
-        )}
       </div>
+
+      {/* Stat chips — separate sibling so space-y-4 creates gaps above and below */}
+      {decisions.length > 0 && (
+        <div className="flex gap-2">
+          <span
+            className="rounded-full px-3 py-1 text-sm"
+            style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
+          >
+            <span aria-hidden="true">🍜 </span>{countEat} restaurant{countEat !== 1 ? "s" : ""}
+          </span>
+          <span
+            className="rounded-full px-3 py-1 text-sm"
+            style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
+          >
+            <span aria-hidden="true">🏛 </span>{countVisit} {countVisit !== 1 ? "activities" : "activity"}
+          </span>
+        </div>
+      )}
 
       {error && <Alert variant="danger">{error}</Alert>}
 

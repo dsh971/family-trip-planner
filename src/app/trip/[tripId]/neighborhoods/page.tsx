@@ -187,7 +187,7 @@ export default function NeighborhoodsPage() {
   return (
     <main className="p-4 pt-6 pb-20 max-w-5xl mx-auto">
       <div className="mb-4">
-        <StepProgress currentStep="area" />
+        <StepProgress currentStep="area" tripId={tripId} />
       </div>
 
       <div className="mb-4 space-y-2">
@@ -224,8 +224,8 @@ export default function NeighborhoodsPage() {
         </div>
       </div>
 
-      {/* Mobile toggle — hidden at md+ */}
-      <div className="flex gap-2 mb-4 md:hidden" role="group" aria-label="View toggle">
+      {/* Mobile toggle — hidden at md+ via .neighborhood-mobile-toggle CSS */}
+      <div className="neighborhood-mobile-toggle flex gap-2 mb-4" role="group" aria-label="View toggle">
         <button
           aria-pressed={!mapVisible}
           onClick={() => setMapVisible(false)}
@@ -252,10 +252,30 @@ export default function NeighborhoodsPage() {
         </button>
       </div>
 
-      {/* Tablet+: side-by-side grid */}
-      <div className="md:grid md:grid-cols-[40%_60%] md:gap-4 md:items-start">
-        {/* Card list — hidden on mobile when map is active */}
-        <div className={`space-y-3 ${mapVisible ? "hidden md:block" : "block"}`}>
+      {/* Split-pane: map right / cards left on desktop, stacked on mobile */}
+      <div className="neighborhood-layout">
+        {/* Map — first in DOM: above cards on mobile (when mapVisible), right column on desktop */}
+        <div
+          className="neighborhood-map-col"
+          style={{ display: mapVisible ? "block" : "none" }}
+        >
+          <NeighborhoodMap
+            neighborhoods={mappedNeighborhoods}
+            selectedId={selected}
+            hoveredId={hoveredId}
+            onSelect={(id) => {
+              setSelected(id);
+              setMapVisible(false);
+              cardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }}
+            onHover={setHoveredId}
+            lodgingAnchorLat={trip?.lodgingAnchorLat}
+            lodgingAnchorLng={trip?.lodgingAnchorLng}
+          />
+        </div>
+
+        {/* Card list — second in DOM: left column on desktop */}
+        <div className="neighborhood-card-col space-y-3" style={{ display: mapVisible ? "none" : "block" }}>
           {mappedNeighborhoods.map((nb, i) => {
             const distanceKm =
               trip?.lodgingAnchorLat != null && trip?.lodgingAnchorLng != null
@@ -372,26 +392,6 @@ export default function NeighborhoodsPage() {
               </div>
             );
           })}
-        </div>
-
-        {/* Map panel — hidden on mobile when list is active */}
-        <div
-          className={`${mapVisible ? "block" : "hidden md:block"} rounded-xl overflow-hidden`}
-          style={{ height: "70vh", minHeight: "400px", position: "sticky", top: "60px" }}
-        >
-          <NeighborhoodMap
-            neighborhoods={mappedNeighborhoods}
-            selectedId={selected}
-            hoveredId={hoveredId}
-            onSelect={(id) => {
-              setSelected(id);
-              setMapVisible(false);
-              cardRefs.current.get(id)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-            }}
-            onHover={setHoveredId}
-            lodgingAnchorLat={trip?.lodgingAnchorLat}
-            lodgingAnchorLng={trip?.lodgingAnchorLng}
-          />
         </div>
       </div>
     </main>

@@ -29,9 +29,35 @@ function makeDiscoveryIcon(
 ) {
   const colorHex = category === "eat" ? "#f59e0b" : "#3b82f6";
 
+  if (isSelected) {
+    // Wrapper is 44×44 so the glow ring (7px outside the 30px circle) stays within iconSize bounds
+    // and doesn't get clipped when the pin is near the map edge.
+    return L.divIcon({
+      className: `pin-selected ${category === "eat" ? "pin-eat" : "pin-visit"}`,
+      html: `<div style="
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      "><div style="
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: white;
+        border: 4px solid ${colorHex};
+        box-shadow: 0 0 0 2px white, 0 0 0 5px ${colorHex}, 0 4px 14px rgba(0,0,0,0.55);
+        cursor: pointer;
+        box-sizing: border-box;
+      "></div></div>`,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22],
+      popupAnchor: [0, -22],
+    });
+  }
+
   const classNames = [
     category === "eat" ? "pin-eat" : "pin-visit",
-    isSelected ? "pin-selected" : "",
     worthTheDetour ? "pin-worth-the-detour" : "",
   ]
     .filter(Boolean)
@@ -40,8 +66,6 @@ function makeDiscoveryIcon(
   const boxShadow = worthTheDetour
     ? `0 0 0 3px white, 0 0 0 4px ${colorHex}, 0 2px 6px rgba(0,0,0,0.35)`
     : "0 2px 6px rgba(0,0,0,0.35)";
-
-  const transform = isSelected ? "scale(1.3)" : "none";
 
   return L.divIcon({
     className: classNames,
@@ -52,7 +76,6 @@ function makeDiscoveryIcon(
       background: ${colorHex};
       border: 1.5px solid white;
       box-shadow: ${boxShadow};
-      transform: ${transform};
       cursor: pointer;
     "></div>`,
     iconSize: [20, 20],
@@ -140,18 +163,18 @@ export default function DiscoveryMap({
 
         <BoundsFitter places={places} />
 
-        {places.map((place) => (
-          <Marker
-            key={place.placeId}
-            position={[place.lat, place.lng]}
-            icon={makeDiscoveryIcon(
-              place.category,
-              place.placeId === selectedPlaceId,
-              place.worthTheDetour,
-            )}
-            eventHandlers={{ click: () => onPinClick(place.placeId) }}
-          />
-        ))}
+        {places.map((place) => {
+          const isSelected = place.placeId === selectedPlaceId;
+          return (
+            <Marker
+              key={place.placeId}
+              position={[place.lat, place.lng]}
+              icon={makeDiscoveryIcon(place.category, isSelected, place.worthTheDetour)}
+              zIndexOffset={isSelected ? 1000 : 0}
+              eventHandlers={{ click: () => onPinClick(place.placeId) }}
+            />
+          );
+        })}
 
         {hotelPosition && (
           <Marker position={hotelPosition} icon={makeHotelIcon()} />
