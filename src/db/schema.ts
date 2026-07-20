@@ -172,8 +172,8 @@ export const places = sqliteTable(
       .default([]),
     // Timestamp when rating/reviewCount/location were last fetched
     enrichedAt: integer("enriched_at", { mode: "timestamp" }),
-    // Google Places photo reference token (for fetching photos on demand)
-    photoReference: text("photo_reference"),
+    // Resolved CDN URL for the place photo (lh3.googleusercontent.com)
+    photoUrl: text("photo_url"),
     // AI-generated or editorial description of the place
     description: text("description"),
   },

@@ -1,128 +1,45 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-
-// We import after setting up env so the module sees the env var
-const FAKE_API_KEY = "TEST_GOOGLE_KEY";
-
-function makeRequest(params: Record<string, string> = {}) {
-  const url = new URL("http://localhost/api/places/photo");
-  for (const [k, v] of Object.entries(params)) {
-    url.searchParams.set(k, v);
-  }
-  return new Request(url.toString());
-}
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 describe("GET /api/places/photo", () => {
   beforeEach(() => {
-    vi.stubEnv("GOOGLE_PLACES_API_KEY", FAKE_API_KEY);
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "test-key");
+    vi.resetModules();
   });
 
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-  });
+  it("resolves photo reference and redirects to CDN URL", async () => {
+    const cdnUrl = "https://lh3.googleusercontent.com/places/abc123";
 
-  it("returns 400 when ref param is missing", async () => {
-    const { GET } = await import("./route");
-    const response = await GET(makeRequest());
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body).toEqual({ error: "ref is required" });
-  });
-
-  it("returns 400 when ref param is an empty string", async () => {
-    const { GET } = await import("./route");
-    const response = await GET(makeRequest({ ref: "" }));
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body).toEqual({ error: "ref is required" });
-  });
-
-  it("fetches upstream with correct URL and streams back the response", async () => {
-    const fakeBody = new ReadableStream();
-    const mockFetch = vi.mocked(fetch);
-    mockFetch.mockResolvedValue(
-      new Response(fakeBody, {
-        status: 200,
-        headers: { "Content-Type": "image/jpeg" },
-      })
-    );
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      headers: { get: (k: string) => k === "location" ? cdnUrl : null },
+    } as unknown as Response);
 
     const { GET } = await import("./route");
-    const response = await GET(makeRequest({ ref: "PHOTO_REF_123", maxWidth: "600" }));
+    const req = new Request("http://localhost/api/places/photo?ref=CmRaAAAAtest&width=200");
+    const res = await GET(req);
 
-    expect(mockFetch).toHaveBeenCalledOnce();
-    const calledUrl = mockFetch.mock.calls[0]![0] as string;
-    expect(calledUrl).toContain("photo_reference=PHOTO_REF_123");
-    expect(calledUrl).toContain("maxwidth=600");
-    expect(calledUrl).toContain(`key=${FAKE_API_KEY}`);
-    expect(calledUrl).toMatch(/^https:\/\/maps\.googleapis\.com\/maps\/api\/place\/photo/);
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe("image/jpeg");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(cdnUrl);
   });
 
-  it("uses default maxWidth of 800 when maxWidth param is omitted", async () => {
-    const fakeBody = new ReadableStream();
-    const mockFetch = vi.mocked(fetch);
-    mockFetch.mockResolvedValue(
-      new Response(fakeBody, {
-        status: 200,
-        headers: { "Content-Type": "image/jpeg" },
-      })
-    );
-
+  it("returns 400 when ref query param is missing", async () => {
     const { GET } = await import("./route");
-    await GET(makeRequest({ ref: "PHOTO_REF_ABC" }));
+    const req = new Request("http://localhost/api/places/photo");
+    const res = await GET(req);
 
-    const calledUrl = mockFetch.mock.calls[0]![0] as string;
-    expect(calledUrl).toContain("maxwidth=800");
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toBe("ref required");
   });
 
-  it("falls back to image/jpeg Content-Type when upstream omits it", async () => {
-    const fakeBody = new ReadableStream();
-    const mockFetch = vi.mocked(fetch);
-    mockFetch.mockResolvedValue(
-      new Response(fakeBody, { status: 200 })
-    );
+  it("returns 404 when photo cannot be resolved (no Location header)", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      headers: { get: () => null },
+    } as unknown as Response);
 
     const { GET } = await import("./route");
-    const response = await GET(makeRequest({ ref: "REF_NO_CT" }));
+    const req = new Request("http://localhost/api/places/photo?ref=bad-ref");
+    const res = await GET(req);
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Content-Type")).toBe("image/jpeg");
-  });
-
-  it("returns 502 when upstream responds with a non-2xx status", async () => {
-    const mockFetch = vi.mocked(fetch);
-    mockFetch.mockResolvedValue(
-      new Response(null, { status: 403 })
-    );
-
-    const { GET } = await import("./route");
-    const response = await GET(makeRequest({ ref: "BAD_REF" }));
-
-    expect(response.status).toBe(502);
-    const body = await response.json();
-    expect(body).toEqual({ error: "upstream error" });
-  });
-
-  it("does not expose the API key in any response header", async () => {
-    const fakeBody = new ReadableStream();
-    const mockFetch = vi.mocked(fetch);
-    mockFetch.mockResolvedValue(
-      new Response(fakeBody, {
-        status: 200,
-        headers: { "Content-Type": "image/jpeg" },
-      })
-    );
-
-    const { GET } = await import("./route");
-    const response = await GET(makeRequest({ ref: "PHOTO_REF_SAFE" }));
-
-    const headerValues = [...response.headers.entries()]
-      .map(([, v]) => v)
-      .join(" ");
-    expect(headerValues).not.toContain(FAKE_API_KEY);
+    expect(res.status).toBe(404);
   });
 });
