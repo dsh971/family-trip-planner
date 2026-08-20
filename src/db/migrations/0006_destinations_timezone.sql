@@ -1,0 +1,1 @@
+ALTER TABLE `destinations` ADD `timezone` text;

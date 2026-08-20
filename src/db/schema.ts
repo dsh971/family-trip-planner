@@ -38,6 +38,14 @@ export const destinations = sqliteTable("destinations", {
   // Staleness shape follows places.enrichedAt: nullable, set on completion,
   // compared against a 90-day TTL by the U4 orchestrator to trigger re-research.
   researchedAt: integer("researched_at", { mode: "timestamp" }),
+  // IANA timezone identifier for this destination, e.g. "Asia/Tokyo",
+  // "Europe/Paris" (plan 2026-08-20-011 U9 calendar-export audit). Nullable
+  // and not yet populated/required anywhere — now that destinations are
+  // arbitrary (not just Tokyo), itinerarySegments.startTime/endTime ("HH:MM"
+  // wall-clock strings) are ambiguous without knowing which zone they're in.
+  // This column gives a future calendar-export unit somewhere to read that
+  // from; it does not itself change how times are computed or displayed.
+  timezone: text("timezone"),
 });
 
 // ---------------------------------------------------------------------------
@@ -273,6 +281,14 @@ export const itinerarySegments = sqliteTable("itinerary_segments", {
   }),
   // "scheduled" | "skipped" | "deferred" | "unscheduled-today" | "unscheduled"
   adjustmentState: text("adjustment_state").notNull().default("scheduled"),
+  // "HH:MM" wall-clock strings (plan 2026-08-20-011 U9 audit). Interpreted as
+  // the trip's destination-local time, paired with the parent ItineraryDay's
+  // `date` — NOT UTC and NOT the traveler's home timezone. Combined with
+  // `date` this is a naive/floating local datetime: unambiguous for display
+  // (today's only consumer), but a future calendar export (out of scope
+  // here, see plan R3) needs an explicit zone to produce a correct iCal
+  // DTSTART/DTEND, since destinations are no longer implicitly Asia/Tokyo.
+  // See destinations.timezone.
   startTime: text("start_time"), // "HH:MM"
   endTime: text("end_time"), // "HH:MM"
   // Type-specific data: route polyline, place snapshot, pacing block name, etc.
