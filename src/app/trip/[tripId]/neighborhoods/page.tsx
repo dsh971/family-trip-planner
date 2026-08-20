@@ -40,6 +40,7 @@ interface RankedNeighborhood {
 
 interface TripDetail {
   id: number;
+  destinationId: number;
   hotelName: string | null;
   lodgingAnchorLat: number | null;
   lodgingAnchorLng: number | null;
@@ -110,11 +111,21 @@ export default function NeighborhoodsPage() {
 
   useEffect(() => {
     void (async () => {
-      const [nbRes, tripRes] = await Promise.all([
-        fetch("/api/neighborhoods?destinationId=1"),
-        fetch(`/api/trips/${tripId}`),
-      ]);
+      // Trip must be fetched first — its destinationId is the real destination to
+      // query neighborhoods for (plan 2026-08-20-011 U2 removed the hardcoded
+      // destinationId=1 query param). Unlike before, a failed trip fetch is now
+      // fatal: without a real destinationId there's no correct destination to show
+      // neighborhoods for.
+      const tripRes = await fetch(`/api/trips/${tripId}`);
+      if (!tripRes.ok) {
+        setError("Failed to load trip");
+        setLoading(false);
+        return;
+      }
+      const tripData = await tripRes.json() as TripDetail;
+      setTrip(tripData);
 
+      const nbRes = await fetch(`/api/neighborhoods?destinationId=${tripData.destinationId}`);
       if (!nbRes.ok) {
         setError("Failed to load neighborhoods");
         setLoading(false);
@@ -123,12 +134,6 @@ export default function NeighborhoodsPage() {
 
       const data = await nbRes.json() as RankedNeighborhood[];
       setNeighborhoods(data);
-
-      if (tripRes.ok) {
-        const tripData = await tripRes.json() as TripDetail;
-        setTrip(tripData);
-      }
-      // If trip fetch fails, we still show neighborhoods — hotel/family chips are simply absent.
 
       setLoading(false);
     })();

@@ -135,6 +135,9 @@ export async function computeRoute(
 
 // Compute routes between all adjacent scheduled place segments in a day.
 // Returns RouteResult list in segment order (one per transition).
+// destinationCity/destinationCountry come from the trip's actual destinations row
+// (plan 2026-08-20-011 U2 follow-up) — used only as a named-anchor fallback when a
+// segment's placeName is unexpectedly null; no more hardcoded "Tokyo, Japan" default.
 export async function computeDayRoutes(
   segments: Array<{
     placeId: number | null;
@@ -143,11 +146,15 @@ export async function computeDayRoutes(
     lng: number | null;
     segmentType: string;
   }>,
-  safetyAreas: SafetyArea[]
+  safetyAreas: SafetyArea[],
+  destinationCity: string,
+  destinationCountry: string
 ): Promise<RouteResult[]> {
   const placeSegments = segments.filter(
     (s) => s.segmentType === "place" && s.placeId !== null && s.lat !== null && s.lng !== null
   );
+
+  const fallbackAnchor = `${destinationCity}, ${destinationCountry}`;
 
   const routes: RouteResult[] = [];
   for (let i = 0; i < placeSegments.length - 1; i++) {
@@ -156,8 +163,8 @@ export async function computeDayRoutes(
 
     const route = await computeRoute(
       {
-        fromName: from.placeName ?? "Tokyo, Japan",
-        toName: to.placeName ?? "Tokyo, Japan",
+        fromName: from.placeName ?? fallbackAnchor,
+        toName: to.placeName ?? fallbackAnchor,
         fromLat: from.lat!,
         fromLng: from.lng!,
         toLat: to.lat!,

@@ -163,7 +163,7 @@ describe("computeDayRoutes", () => {
       { placeId: 3, placeName: "Place C", lat: 35.699, lng: 139.570, segmentType: "place" },
     ];
 
-    const routes = await computeDayRoutes(segments, noSafetyAreas);
+    const routes = await computeDayRoutes(segments, noSafetyAreas, "Tokyo", "Japan");
     expect(routes).toHaveLength(2); // 3 places → 2 legs
     expect(routeViewMock).toHaveBeenCalledTimes(2);
   });
@@ -185,7 +185,7 @@ describe("computeDayRoutes", () => {
       { placeId: 2, placeName: "Place B", lat: 35.700, lng: 139.576, segmentType: "place" },
     ];
 
-    const routes = await computeDayRoutes(segments, noSafetyAreas);
+    const routes = await computeDayRoutes(segments, noSafetyAreas, "Tokyo", "Japan");
     expect(routes).toHaveLength(1); // pacing-block is skipped
   });
 
@@ -193,8 +193,32 @@ describe("computeDayRoutes", () => {
     const segments = [
       { placeId: 1, placeName: "Only One", lat: 35.702, lng: 139.58, segmentType: "place" },
     ];
-    const routes = await computeDayRoutes(segments, noSafetyAreas);
+    const routes = await computeDayRoutes(segments, noSafetyAreas, "Tokyo", "Japan");
     expect(routes).toHaveLength(0);
     expect(routeViewMock).not.toHaveBeenCalled();
+  });
+
+  // U2 follow-up (plan 2026-08-20-011): a null placeName must fall back to the
+  // trip's real destination (destinationCity/destinationCountry), not a hardcoded
+  // "Tokyo, Japan" anchor — verified via the fromName/toName passed to routeView.
+  it("falls back to the real destination anchor (not Tokyo/Japan) when placeName is null", async () => {
+    routeViewMock.mockResolvedValue({
+      from: mockAnchor("A"),
+      to: mockAnchor("B"),
+      buffer_meters: 200,
+      distance_meters: 400,
+      walking_minutes: 5,
+      along_route: null,
+      note: "ok",
+    });
+
+    const segments = [
+      { placeId: 1, placeName: null, lat: 48.857, lng: 2.352, segmentType: "place" },
+      { placeId: 2, placeName: null, lat: 48.860, lng: 2.360, segmentType: "place" },
+    ];
+
+    await computeDayRoutes(segments, noSafetyAreas, "Paris", "France");
+
+    expect(routeViewMock).toHaveBeenCalledWith("Paris, France", "Paris, France");
   });
 });

@@ -18,7 +18,7 @@ describe("web-search: searchCandidates", () => {
       }),
     } as Response);
 
-    const results = await searchCandidates("Kichijoji", "eat");
+    const results = await searchCandidates("Kichijoji", "eat", "Tokyo");
     expect(results).toHaveLength(2);
     expect(results[0]!.name).toBe("Musashino Ramen");
     expect(results[1]!.name).toBe("Kichijoji Sushi");
@@ -28,13 +28,13 @@ describe("web-search: searchCandidates", () => {
 
   it("returns empty array when GOOGLE_CSE_CX is not set", async () => {
     vi.stubEnv("GOOGLE_CSE_CX", "");
-    const results = await searchCandidates("Kichijoji", "eat");
+    const results = await searchCandidates("Kichijoji", "eat", "Tokyo");
     expect(results).toHaveLength(0);
   });
 
   it("returns empty array when GOOGLE_PLACES_API_KEY is not set", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "");
-    const results = await searchCandidates("Kichijoji", "eat");
+    const results = await searchCandidates("Kichijoji", "eat", "Tokyo");
     expect(results).toHaveLength(0);
   });
 
@@ -44,7 +44,7 @@ describe("web-search: searchCandidates", () => {
       status: 429,
     } as Response);
 
-    const results = await searchCandidates("Kichijoji", "eat");
+    const results = await searchCandidates("Kichijoji", "eat", "Tokyo");
     expect(results).toHaveLength(0);
   });
 
@@ -54,7 +54,27 @@ describe("web-search: searchCandidates", () => {
       json: async () => ({}),
     } as Response);
 
-    const results = await searchCandidates("Kichijoji", "visit");
+    const results = await searchCandidates("Kichijoji", "visit", "Tokyo");
     expect(results).toHaveLength(0);
+  });
+
+  // U2 follow-up (plan 2026-08-20-011): the query must use the real destination's
+  // city, not a hardcoded "Tokyo" suffix — verified via the `q` param sent to CSE.
+  it("builds the search query from a non-Tokyo destination's real city", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ items: [] }),
+    } as Response);
+    global.fetch = fetchMock;
+
+    await searchCandidates("Le Marais", "eat", "Paris");
+
+    const calledUrl = new URL(fetchMock.mock.calls[0]![0] as string);
+    const q = calledUrl.searchParams.get("q");
+    expect(q).toContain("Paris");
+    expect(q).not.toContain("Tokyo");
+    // No hardcoded `gl` region-bias param either (destinations.country has no
+    // reliable ISO ccTLD mapping — same reasoning as textSearchPlaces in places.ts).
+    expect(calledUrl.searchParams.get("gl")).toBeNull();
   });
 });

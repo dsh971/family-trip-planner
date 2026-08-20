@@ -5,22 +5,18 @@ set -e
 echo "==> Running database migrations..."
 npx tsx src/db/migrate.ts
 
-# Seed destination, neighborhood, and safety data (idempotent inserts)
+# Seed destination, neighborhood, and safety data (idempotent inserts) — a
+# dev/demo fallback fixture, not the only path to a populated destination
+# (see src/services/destinations/lookup.ts, plan 2026-08-20-011 U1).
 echo "==> Seeding destination data..."
 npx tsx src/db/seed.ts
 
-# Sync Wanderlust GOAT place data for Tokyo.
-# Required before route-view/crossover return populated results and before
-# cross-source corroboration scores are non-zero (see curation engine plan).
-# Runs every startup so the local store stays fresh; typically takes 2-5 min
-# on first run and is faster on subsequent runs (incremental sync).
-echo "==> Syncing Wanderlust GOAT city data for Tokyo (this may take a few minutes on first run)..."
-if wanderlust-goat-pp-cli sync-city "Tokyo" --country JP; then
-  echo "    sync-city completed successfully"
-else
-  echo "WARNING: sync-city failed — discovery/routing will run in degraded mode"
-  echo "         (cross-source corroboration scores will be 0; Google Places only)"
-fi
+# NOTE: Wanderlust GOAT's per-city sync ("wanderlust-goat-pp-cli sync-city") used
+# to run here unconditionally for Tokyo at every startup. That was a hardcoded,
+# single-destination assumption that doesn't hold once destinations are created
+# dynamically (plan 2026-08-20-011 U2). Per-destination sync-city hydration is
+# reintroduced as part of that destination's first neighborhood-discovery research
+# pass in a later unit of that plan, not at container startup.
 
 echo "==> Starting Next.js server on port ${PORT:-3000}..."
 exec npm start

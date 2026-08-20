@@ -21,7 +21,7 @@ export default function Home() {
             className="text-xs font-semibold uppercase tracking-widest"
             style={{ color: "var(--accent)", letterSpacing: "0.2em" }}
           >
-            Tokyo, Japan
+            Family Trip Planning
           </p>
 
           <h1
@@ -34,7 +34,7 @@ export default function Home() {
           </h1>
 
           <p className="text-base mt-1" style={{ color: "var(--fg-2)" }}>
-            Plan your perfect Tokyo family adventure — neighborhoods, food, activities, all in one place.
+            Plan your perfect family adventure, anywhere — neighborhoods, food, activities, all in one place.
           </p>
 
           <Button variant="primary" size="lg" asChild className="mt-4 w-full">

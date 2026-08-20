@@ -114,12 +114,14 @@ describe("checkDetourViability", () => {
 });
 
 describe("buildNeighborhoodAnchor", () => {
-  it("formats Kichijoji anchor correctly", () => {
-    expect(buildNeighborhoodAnchor("Kichijoji")).toBe("Kichijoji, Tokyo, Japan");
+  it("formats a Tokyo anchor correctly when the real destination is Tokyo/Japan", () => {
+    expect(buildNeighborhoodAnchor("Kichijoji", "Tokyo", "Japan")).toBe("Kichijoji, Tokyo, Japan");
   });
 
-  it("allows custom city and country", () => {
-    expect(buildNeighborhoodAnchor("Shibuya", "Tokyo", "Japan")).toBe("Shibuya, Tokyo, Japan");
+  // U2 follow-up (plan 2026-08-20-011): city/country are required — no more
+  // hardcoded Tokyo/Japan default — so a non-Japan destination formats correctly.
+  it("formats a non-Japan anchor from the real destination's city/country", () => {
+    expect(buildNeighborhoodAnchor("Le Marais", "Paris", "France")).toBe("Le Marais, Paris, France");
   });
 });
 

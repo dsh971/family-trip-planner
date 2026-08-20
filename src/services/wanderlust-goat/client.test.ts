@@ -47,13 +47,28 @@ describe("U5: Wanderlust GOAT client", () => {
     execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
     const { discoverGoat } = await import("./client");
-    const result = await discoverGoat("Kichijoji", "eat", 1200);
+    const result = await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
 
     expect(result.anchor.city).toBe("Kichijoji");
     expect(result.results).toHaveLength(2);
     expect(result.results[0]!.name).toBe("Musashino Supper Club");
     expect(result.results[0]!.score.total).toBe(82);
     expect(result.trace.Region).toBe("JP");
+  });
+
+  // U2 (plan 2026-08-20-011): buildAnchorName must use the real destination's
+  // city/country, not the old Tokyo/Japan default — verified via the anchor
+  // positional arg passed to the WG CLI.
+  it("discoverGoat builds the anchor from a non-Japan destination's real city/country", async () => {
+    execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
+
+    const { discoverGoat } = await import("./client");
+    await discoverGoat("Le Marais", "eat", 800, "Paris", "France");
+
+    const callArgs = execMock.mock.calls[0]![1] as string[];
+    expect(callArgs[1]).toBe("Le Marais, Paris, France");
+    expect(callArgs[1]).not.toContain("Tokyo");
+    expect(callArgs[1]).not.toContain("Japan");
   });
 
   it("routeView returns correctly typed results from route-view fixture", async () => {
@@ -88,29 +103,29 @@ describe("U5: Wanderlust GOAT client", () => {
     execMock.mockRejectedValueOnce(err);
 
     const { discoverGoat } = await import("./client");
-    await expect(discoverGoat("Kichijoji", "eat", 1200)).rejects.toThrow(WGCommandError);
+    await expect(discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan")).rejects.toThrow(WGCommandError);
   });
 
   it("malformed JSON from subprocess surfaces as WGCommandError", async () => {
     execMock.mockResolvedValueOnce({ stdout: "not valid json {{{", stderr: "" });
 
     const { discoverGoat } = await import("./client");
-    await expect(discoverGoat("Kichijoji", "eat", 1200)).rejects.toThrow(WGCommandError);
+    await expect(discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan")).rejects.toThrow(WGCommandError);
   });
 
   it("reports WGUnavailableError when binary is not on PATH", async () => {
     whichMock.mockResolvedValueOnce(false);
 
     const { discoverGoat } = await import("./client");
-    await expect(discoverGoat("Kichijoji", "eat", 1200)).rejects.toThrow(WGUnavailableError);
+    await expect(discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan")).rejects.toThrow(WGUnavailableError);
   });
 
   it("two identical queries hit the cache — execFileAsync called only once", async () => {
     execMock.mockResolvedValue({ stdout: goatFixture, stderr: "" });
 
     const { discoverGoat } = await import("./client");
-    await discoverGoat("Kichijoji", "eat", 1200);
-    await discoverGoat("Kichijoji", "eat", 1200);
+    await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
+    await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
 
     expect(execMock).toHaveBeenCalledTimes(1);
   });
@@ -120,7 +135,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "eat", 400);
+      await discoverGoat("Kichijoji", "eat", 400, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -145,7 +160,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "visit", 400);
+      await discoverGoat("Kichijoji", "visit", 400, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -162,7 +177,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "eat", 1200);
+      await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -175,7 +190,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "eat", 100);
+      await discoverGoat("Kichijoji", "eat", 100, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -189,8 +204,8 @@ describe("U5: Wanderlust GOAT client", () => {
 
       const { discoverGoat } = await import("./client");
       // 400m → round(400/80)=5, 390m → round(390/80)=round(4.875)=5 — same key
-      await discoverGoat("Kichijoji", "eat", 400);
-      await discoverGoat("Kichijoji", "eat", 390);
+      await discoverGoat("Kichijoji", "eat", 400, "Tokyo", "Japan");
+      await discoverGoat("Kichijoji", "eat", 390, "Tokyo", "Japan");
 
       expect(execMock).toHaveBeenCalledTimes(1);
     });

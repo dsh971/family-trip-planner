@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { neighborhoods, safetyAreas, places, trips, familyProfiles } from "@/db/schema";
+import { neighborhoods, safetyAreas, places, trips, familyProfiles, destinations } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { textSearchPlaces, getPlaceDetails, findNearbyTransitStations, type TransitStation } from "@/services/discovery/places";
 import { buildSources, corroborationScore, namesMatch } from "@/services/discovery/corroboration";
@@ -69,6 +69,18 @@ export async function POST(request: Request) {
     .where(eq(safetyAreas.destinationId, trip.destinationId))
     .all();
 
+  // Real destination (city/country) for this trip — threaded into textSearchPlaces
+  // and discoverGoat instead of their old hardcoded Tokyo/Japan defaults (plan
+  // 2026-08-20-011 U2).
+  const destination = db
+    .select()
+    .from(destinations)
+    .where(eq(destinations.id, trip.destinationId))
+    .all()[0];
+  if (!destination) {
+    return NextResponse.json({ error: "Destination not found" }, { status: 404 });
+  }
+
   const categories: Array<"eat" | "visit"> = ["eat", "visit"];
   const candidates: DiscoveryCandidate[] = [];
 
@@ -80,7 +92,7 @@ export async function POST(request: Request) {
 
   for (const category of categories) {
     // Stage 1: Google Places Text Search — structured place objects directly
-    const textSearchResults = await textSearchPlaces(neighborhood.name, category);
+    const textSearchResults = await textSearchPlaces(neighborhood.name, category, destination.name);
 
     // Stage 1b: WG CLI — corroboration signal + Tabelog-confirmed candidate promotion
     const wgNames: string[] = [];
@@ -91,7 +103,9 @@ export async function POST(request: Request) {
         const wgResult = await discoverGoat(
           neighborhood.name,
           category,
-          neighborhood.walkingRadiusMeters
+          neighborhood.walkingRadiusMeters,
+          destination.name,
+          destination.country
         );
         wgDiscoverSucceeded = true;
         for (const place of wgResult.results) {

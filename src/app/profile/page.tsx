@@ -10,7 +10,7 @@ import {
   Alert,
   DatePicker,
 } from "@sumiui/react";
-import { Users, Heart, Clock, CalendarDays, Building2 } from "lucide-react";
+import { Users, Heart, Clock, CalendarDays, Building2, MapPin } from "lucide-react";
 
 interface PacingWindow {
   name: string;
@@ -55,6 +55,8 @@ function SectionHeader({
 
 export default function ProfilePage() {
   const router = useRouter();
+  const [destinationName, setDestinationName] = useState("");
+  const [destinationCountry, setDestinationCountry] = useState("");
   const [adultCount, setAdultCount] = useState(2);
   const [children, setChildren] = useState<Child[]>([{ age: 4 }, { age: 7 }]);
   const [dietaryTags, setDietaryTags] = useState("");
@@ -74,6 +76,12 @@ export default function ProfilePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!destinationName.trim()) {
+      setError("Destination: Required");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -102,7 +110,8 @@ export default function ProfilePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           familyProfileId: profile.id,
-          destinationId: 1,
+          destinationName: destinationName.trim(),
+          destinationCountry: destinationCountry.trim() || undefined,
           startDate: startDate ?? "",
           endDate: endDate ?? "",
           hotelName: hotelName || undefined,
@@ -145,7 +154,7 @@ export default function ProfilePage() {
       >
         <div className="mb-2">
           <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
-            Tokyo, Japan
+            Trip Details
           </p>
           <h1
             className="text-3xl font-bold tracking-tight"
@@ -156,10 +165,33 @@ export default function ProfilePage() {
         </div>
 
         <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+          {/* 0. Destination */}
+          <Card>
+            <CardBody className="space-y-3">
+              <SectionHeader num={1} icon={<MapPin size={16} />} title="Destination" />
+              <div className="flex gap-2 flex-wrap">
+                <Input
+                  label="City"
+                  value={destinationName}
+                  onChange={(e) => setDestinationName(e.target.value)}
+                  placeholder="e.g. Paris"
+                  className="flex-1"
+                />
+                <Input
+                  label="Country (optional)"
+                  value={destinationCountry}
+                  onChange={(e) => setDestinationCountry(e.target.value)}
+                  placeholder="e.g. France"
+                  className="flex-1"
+                />
+              </div>
+            </CardBody>
+          </Card>
+
           {/* 1. Family Composition */}
           <Card>
             <CardBody className="space-y-3">
-              <SectionHeader num={1} icon={<Users size={16} />} title="Family Composition" />
+              <SectionHeader num={2} icon={<Users size={16} />} title="Family Composition" />
               <Input
                 label="Adults"
                 type="number"
@@ -210,7 +242,7 @@ export default function ProfilePage() {
           {/* 2. Needs */}
           <Card>
             <CardBody className="space-y-3">
-              <SectionHeader num={2} icon={<Heart size={16} />} title="Dietary & Accessibility Needs" />
+              <SectionHeader num={3} icon={<Heart size={16} />} title="Dietary & Accessibility Needs" />
               <Input
                 label="Dietary tags (comma-separated)"
                 value={dietaryTags}
@@ -229,7 +261,7 @@ export default function ProfilePage() {
           {/* 3. Pacing Blocks */}
           <Card>
             <CardBody className="space-y-3">
-              <SectionHeader num={3} icon={<Clock size={16} />} title="Daily Pacing Blocks" />
+              <SectionHeader num={4} icon={<Clock size={16} />} title="Daily Pacing Blocks" />
               {pacingWindows.map((w, i) => (
                 <div key={i} className="flex items-center gap-2 flex-wrap">
                   <Input
@@ -289,7 +321,7 @@ export default function ProfilePage() {
           {/* 4. Trip Dates */}
           <Card>
             <CardBody className="space-y-3">
-              <SectionHeader num={4} icon={<CalendarDays size={16} />} title="Trip Dates" />
+              <SectionHeader num={5} icon={<CalendarDays size={16} />} title="Trip Dates" />
               <div className="flex gap-4 flex-wrap">
                 <DatePicker
                   label="Start date"
@@ -308,19 +340,19 @@ export default function ProfilePage() {
           {/* 5. Hotel */}
           <Card>
             <CardBody className="space-y-3">
-              <SectionHeader num={5} icon={<Building2 size={16} />} title="Pre-Booked Hotel" />
+              <SectionHeader num={6} icon={<Building2 size={16} />} title="Pre-Booked Hotel" />
               <p className="text-xs" style={{ color: "var(--fg-3)" }}>Optional — helps us optimize your walking routes.</p>
               <Input
                 label="Hotel name"
                 value={hotelName}
                 onChange={(e) => setHotelName(e.target.value)}
-                placeholder="e.g. Park Hyatt Tokyo"
+                placeholder="e.g. Grand Hotel"
               />
               <Input
                 label="Hotel address"
                 value={hotelAddress}
                 onChange={(e) => setHotelAddress(e.target.value)}
-                placeholder="e.g. 3-7-1-2 Nishi Shinjuku"
+                placeholder="e.g. 123 Main Street"
               />
               {hotelName && (
                 <label

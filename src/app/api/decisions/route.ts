@@ -6,6 +6,7 @@ import {
   trips,
   neighborhoods,
   familyProfiles,
+  destinations,
 } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import {
@@ -76,6 +77,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   }
 
+  // Real destination (city/country) for this trip — threaded into detour anchors
+  // instead of the old hardcoded "Tokyo, Japan" fallback (plan 2026-08-20-011 U2
+  // follow-up), same pattern as the discovery route.
+  const destination = db
+    .select()
+    .from(destinations)
+    .where(eq(destinations.id, trip.destinationId))
+    .all()[0];
+  if (!destination) {
+    return NextResponse.json({ error: "Destination not found" }, { status: 404 });
+  }
+
   // Resolve the numeric place.id from the Google placeId string
   const place = db.select().from(places).where(eq(places.placeId, googlePlaceId)).all()[0];
   if (!place) {
@@ -102,10 +115,10 @@ export async function POST(request: Request) {
     const fromName = trip.lodgingAnchorAddress
       ? trip.lodgingAnchorAddress
       : neighborhood
-      ? buildNeighborhoodAnchor(neighborhood.name)
-      : "Tokyo, Japan";
+      ? buildNeighborhoodAnchor(neighborhood.name, destination.name, destination.country)
+      : `${destination.name}, ${destination.country}`;
 
-    const toName = `${place.name}, Tokyo, Japan`;
+    const toName = `${place.name}, ${destination.name}, ${destination.country}`;
     const pacingBudget = profile
       ? derivePacingBudget(
           profile.pacingWindows as Array<{ name: string; startTime: string; endTime: string }>

@@ -17,7 +17,10 @@ const WG_BINARY = "wanderlust-goat-pp-cli";
 
 // Named anchor required — raw lat/lng falls back to country:"*" (English-only sources).
 // U5 resolves each neighborhood centroid to a named string like "Kichijoji, Tokyo, Japan".
-function buildAnchorName(neighborhoodName: string, city = "Tokyo", country = "Japan"): string {
+// city/country come from the trip's actual destinations row (plan 2026-08-20-011 U2) —
+// no default; every caller must supply the real destination instead of silently getting
+// Tokyo/Japan for destinations that aren't Tokyo.
+function buildAnchorName(neighborhoodName: string, city: string, country: string): string {
   return `${neighborhoodName}, ${city}, ${country}`;
 }
 
@@ -61,13 +64,17 @@ function parseJson<T>(raw: string, command: string): T {
 }
 
 // goat — discovery with cross-source validation (KTD-B).
-// Uses named anchor so WG resolves to JP country and fires Tabelog/Hotpepper validators.
+// Uses named anchor so WG resolves to the destination's actual country and fires its
+// locale-appropriate validators (e.g. Tabelog/Hotpepper for Japan) — city/country must
+// be the trip's real destination (destinations.name/country), not a hardcoded default.
 export async function discoverGoat(
   neighborhoodName: string,
   category: string,
-  radiusMeters: number
+  radiusMeters: number,
+  city: string,
+  country: string
 ): Promise<WGGoatResult> {
-  const anchor = buildAnchorName(neighborhoodName);
+  const anchor = buildAnchorName(neighborhoodName, city, country);
 
   const walkingMinutes = Math.max(5, Math.round(radiusMeters / 80));
 
