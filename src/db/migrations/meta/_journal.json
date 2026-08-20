@@ -36,6 +36,13 @@
       "when": 1784427794000,
       "tag": "0004_photo_url",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787258426837,
+      "tag": "0005_research_status_and_dynamic_destinations",
+      "breakpoints": true
     }
   ]
 }
