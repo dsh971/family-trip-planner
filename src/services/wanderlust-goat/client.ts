@@ -182,3 +182,33 @@ export async function crossover(
 export async function checkAvailability(): Promise<boolean> {
   return isAvailable();
 }
+
+// sync-city — hydrates WG's local per-city OSM/route-network data store
+// (docs/plans/2026-06-15-001-feat-experience-curation-engine-plan.md KTD-J).
+// Without this, route-view/crossover return null and goat falls back to
+// English-only sources for that city (see WGRouteViewResult.along_route /
+// WGCrossoverResult.pairs comments in ./types.ts).
+//
+// Historically this only ran once, unconditionally, for Tokyo at container
+// startup (scripts/entrypoint.sh). Plan 2026-08-20-011 U5 makes it callable
+// per-destination as the one-time first step of that destination's first
+// neighborhood-discovery research pass (see src/app/api/destinations/[id]/research/route.ts) —
+// callers are responsible for only invoking this when a destination's
+// researchStatus is "not_started" (checked once, before markInProgress);
+// this function itself has no memory of which cities it's already synced.
+//
+// Real invocation takes 2-5 minutes in production (plan Risks & Dependencies)
+// — this is the one-time cost that lands on whoever triggers a city's first
+// research pass. No caching here: this is a one-time side-effecting
+// hydration step, not a queryable result with something to key a cache by.
+//
+// --no-input/--no-color/--yes mirror the non-interactive flags every other
+// command in this file already passes (required now that this runs inside a
+// live request handler, not an interactive startup script). --json/--agent
+// are intentionally omitted — callers don't need structured output, just
+// success/failure, and runCommand already surfaces failures as
+// WGUnavailableError/WGCommandError like every other export here.
+export async function syncCity(city: string, country: string): Promise<void> {
+  const args = ["sync-city", city, "--country", country, "--no-input", "--no-color", "--yes"];
+  await runCommand(args);
+}

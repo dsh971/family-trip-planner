@@ -210,4 +210,50 @@ describe("U5: Wanderlust GOAT client", () => {
       expect(execMock).toHaveBeenCalledTimes(1);
     });
   });
+
+  // U5 (plan 2026-08-20-011): syncCity wrapper around `sync-city`, callable
+  // per-destination instead of only at container startup for Tokyo.
+  describe("syncCity", () => {
+    it("invokes sync-city with the given city/country and non-interactive flags", async () => {
+      execMock.mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+      const { syncCity } = await import("./client");
+      await syncCity("Paris", "France");
+
+      const callArgs = execMock.mock.calls[0]![1] as string[];
+      expect(callArgs[0]).toBe("sync-city");
+      expect(callArgs[1]).toBe("Paris");
+      const countryIdx = callArgs.indexOf("--country");
+      expect(countryIdx).toBeGreaterThan(-1);
+      expect(callArgs[countryIdx + 1]).toBe("France");
+      expect(callArgs).toContain("--no-input");
+      expect(callArgs).toContain("--no-color");
+      expect(callArgs).toContain("--yes");
+    });
+
+    it("propagates WGUnavailableError when the binary is not on PATH", async () => {
+      whichMock.mockResolvedValueOnce(false);
+
+      const { syncCity } = await import("./client");
+      await expect(syncCity("Paris", "France")).rejects.toThrow(WGUnavailableError);
+    });
+
+    it("propagates WGCommandError on a non-zero exit code", async () => {
+      const err = Object.assign(new Error("sync failed"), { code: 1, stderr: "sync failed" });
+      execMock.mockRejectedValueOnce(err);
+
+      const { syncCity } = await import("./client");
+      await expect(syncCity("Paris", "France")).rejects.toThrow(WGCommandError);
+    });
+
+    it("is not cached — two calls invoke the CLI twice", async () => {
+      execMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+      const { syncCity } = await import("./client");
+      await syncCity("Paris", "France");
+      await syncCity("Paris", "France");
+
+      expect(execMock).toHaveBeenCalledTimes(2);
+    });
+  });
 });
