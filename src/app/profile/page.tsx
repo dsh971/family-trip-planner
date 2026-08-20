@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -21,6 +21,18 @@ interface PacingWindow {
 interface Child {
   age: number;
 }
+
+interface DestinationSuggestion {
+  id: number;
+  name: string;
+  country: string;
+  slug: string;
+}
+
+// Debounce delay for the destination search-as-you-type query (U3, plan
+// 2026-08-20-011). No shared debounce helper exists in this codebase yet —
+// kept small and local to this component per the plan's guidance.
+const DESTINATION_SEARCH_DEBOUNCE_MS = 200;
 
 function SectionHeader({
   num,
@@ -57,6 +69,13 @@ export default function ProfilePage() {
   const router = useRouter();
   const [destinationName, setDestinationName] = useState("");
   const [destinationCountry, setDestinationCountry] = useState("");
+  // Set when the traveler picks an existing destination from the
+  // search-as-you-type dropdown; cleared whenever they edit the name again
+  // so a subsequent submit falls back to free-text create-new behavior.
+  const [selectedDestinationId, setSelectedDestinationId] = useState<number | null>(null);
+  const [destinationSuggestions, setDestinationSuggestions] = useState<DestinationSuggestion[]>([]);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const destinationDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [adultCount, setAdultCount] = useState(2);
   const [children, setChildren] = useState<Child[]>([{ age: 4 }, { age: 7 }]);
   const [dietaryTags, setDietaryTags] = useState("");
@@ -72,6 +91,51 @@ export default function ProfilePage() {
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Debounced search-as-you-type against GET /api/destinations?q= (U3, plan
+  // 2026-08-20-011). Skips the query entirely once a suggestion has been
+  // selected — see the Input's onChange, which clears selectedDestinationId
+  // as soon as the traveler edits the name again. Clearing suggestions for
+  // the "nothing to search" case happens in the onChange/selection handlers
+  // themselves rather than here, so this effect never calls setState
+  // synchronously in its body (only inside the debounced fetch callback).
+  useEffect(() => {
+    if (destinationDebounceRef.current) {
+      clearTimeout(destinationDebounceRef.current);
+    }
+
+    const query = destinationName.trim();
+    if (!query || selectedDestinationId !== null) {
+      return;
+    }
+
+    destinationDebounceRef.current = setTimeout(() => {
+      fetch(`/api/destinations?q=${encodeURIComponent(query)}`)
+        .then((res) => (res.ok ? (res.json() as Promise<DestinationSuggestion[]>) : []))
+        .then((results) => {
+          setDestinationSuggestions(results);
+          setSuggestionsOpen(results.length > 0);
+        })
+        .catch(() => {
+          setDestinationSuggestions([]);
+          setSuggestionsOpen(false);
+        });
+    }, DESTINATION_SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      if (destinationDebounceRef.current) {
+        clearTimeout(destinationDebounceRef.current);
+      }
+    };
+  }, [destinationName, selectedDestinationId]);
+
+  function selectDestinationSuggestion(suggestion: DestinationSuggestion) {
+    setDestinationName(suggestion.name);
+    setDestinationCountry(suggestion.country);
+    setSelectedDestinationId(suggestion.id);
+    setDestinationSuggestions([]);
+    setSuggestionsOpen(false);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -105,13 +169,24 @@ export default function ProfilePage() {
 
       const profile = await profileRes.json() as { id: number };
 
+      // If the traveler picked a suggestion, send its real destinationId
+      // directly rather than re-resolving by name (U3, plan 2026-08-20-011) —
+      // this is what guarantees selecting an existing destination reuses its
+      // row instead of racing findOrCreateDestination's own dedup-by-slug.
+      // Otherwise, fall back to the free-text name/country path (U2's
+      // stopgap, still handled by /api/trips) so a genuinely novel
+      // destination still creates a new row on submit.
       const tripRes = await fetch("/api/trips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           familyProfileId: profile.id,
-          destinationName: destinationName.trim(),
-          destinationCountry: destinationCountry.trim() || undefined,
+          ...(selectedDestinationId !== null
+            ? { destinationId: selectedDestinationId }
+            : {
+                destinationName: destinationName.trim(),
+                destinationCountry: destinationCountry.trim() || undefined,
+              }),
           startDate: startDate ?? "",
           endDate: endDate ?? "",
           hotelName: hotelName || undefined,
@@ -170,21 +245,104 @@ export default function ProfilePage() {
             <CardBody className="space-y-3">
               <SectionHeader num={1} icon={<MapPin size={16} />} title="Destination" />
               <div className="flex gap-2 flex-wrap">
-                <Input
-                  label="City"
-                  value={destinationName}
-                  onChange={(e) => setDestinationName(e.target.value)}
-                  placeholder="e.g. Paris"
-                  className="flex-1"
-                />
+                <div className="flex-1" style={{ position: "relative" }}>
+                  <Input
+                    label="City"
+                    value={destinationName}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setDestinationName(value);
+                      setSelectedDestinationId(null);
+                      if (!value.trim()) {
+                        setDestinationSuggestions([]);
+                        setSuggestionsOpen(false);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (destinationSuggestions.length > 0) setSuggestionsOpen(true);
+                    }}
+                    onBlur={() => {
+                      // Delay so a click on a suggestion (onMouseDown below)
+                      // registers before the dropdown unmounts.
+                      setTimeout(() => setSuggestionsOpen(false), 150);
+                    }}
+                    placeholder="e.g. Paris"
+                    autoComplete="off"
+                    aria-expanded={suggestionsOpen}
+                    aria-autocomplete="list"
+                  />
+                  {suggestionsOpen && destinationSuggestions.length > 0 && (
+                    <ul
+                      role="listbox"
+                      aria-label="Matching destinations"
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        marginTop: "4px",
+                        background: "var(--bg-1)",
+                        border: "1px solid var(--line-1)",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                        zIndex: 30,
+                        maxHeight: "220px",
+                        overflowY: "auto",
+                        listStyle: "none",
+                        margin: "4px 0 0 0",
+                        padding: "4px",
+                      }}
+                    >
+                      {destinationSuggestions.map((s) => (
+                        <li key={s.id}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={selectedDestinationId === s.id}
+                            onMouseDown={(e) => {
+                              // Prevent the Input's onBlur from closing the
+                              // dropdown before this click is handled.
+                              e.preventDefault();
+                              selectDestinationSuggestion(s);
+                            }}
+                            className="w-full text-left"
+                            style={{
+                              display: "block",
+                              padding: "6px 8px",
+                              borderRadius: "6px",
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              color: "var(--fg-1)",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            {s.name}
+                            {s.country && (
+                              <span style={{ color: "var(--fg-3)" }}> · {s.country}</span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 <Input
                   label="Country (optional)"
                   value={destinationCountry}
-                  onChange={(e) => setDestinationCountry(e.target.value)}
+                  onChange={(e) => {
+                    setDestinationCountry(e.target.value);
+                    setSelectedDestinationId(null);
+                  }}
                   placeholder="e.g. France"
                   className="flex-1"
                 />
               </div>
+              {selectedDestinationId !== null && (
+                <p className="text-xs" style={{ color: "var(--fg-3)" }}>
+                  Using existing destination — shared research will be reused for this trip.
+                </p>
+              )}
             </CardBody>
           </Card>
 
