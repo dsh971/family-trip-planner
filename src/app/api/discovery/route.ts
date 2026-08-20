@@ -15,21 +15,11 @@ import {
   checkAvailability,
 } from "@/services/wanderlust-goat/client";
 import { WGPlace, WGUnavailableError } from "@/services/wanderlust-goat/types";
-
-// Concurrency-limited batch processor
-async function withConcurrencyLimit<T>(
-  items: T[],
-  fn: (item: T) => Promise<unknown>,
-  limit: number
-): Promise<void> {
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += limit) {
-    chunks.push(items.slice(i, i + limit));
-  }
-  for (const chunk of chunks) {
-    await Promise.all(chunk.map(fn));
-  }
-}
+// Promoted to the shared research service layer (plan 2026-08-20-011 U4) so
+// this route and the new async research runs (U5, U6) share one
+// implementation instead of duplicating it. See concurrency.ts for the scope
+// note on why this doesn't bound parallelism across concurrent runs.
+import { withConcurrencyLimit } from "@/services/research/concurrency";
 
 export async function POST(request: Request) {
   let body: unknown;
