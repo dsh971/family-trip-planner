@@ -31,6 +31,13 @@ export async function GET(
   return NextResponse.json({
     id: row.trips.id,
     status: row.trips.status,
+    // Exposed so client pages (e.g. neighborhoods/page.tsx) can look up this trip's
+    // real destination instead of hardcoding destinationId (plan 2026-08-20-011 U2).
+    destinationId: row.trips.destinationId,
+    // Exposed so client pages (e.g. discovery/page.tsx, plan 2026-08-20-011
+    // U7) can open the U6 SSE research stream for this trip's selected
+    // neighborhood without a second round-trip.
+    selectedNeighborhoodId: row.trips.selectedNeighborhoodId,
     hotelName: row.trips.hotelName,
     lodgingAnchorLat: row.trips.lodgingAnchorLat,
     lodgingAnchorLng: row.trips.lodgingAnchorLng,
@@ -65,8 +72,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  const db = getDb();
+
+  // Look up the trip first so we can validate against its *real* destinationId
+  // rather than a hardcoded placeholder (plan 2026-08-20-011 U2) — this PATCH
+  // endpoint doesn't change destination, but validateTrip's shape requires a
+  // numeric destinationId, so we supply the trip's actual one.
+  const trip = db.select().from(trips).where(eq(trips.id, tripId)).all()[0];
+  if (!trip) {
+    return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+  }
+
   const profileResult = validateProfile(body);
-  const tripResult = validateTrip({ ...(body as Record<string, unknown>), destinationId: 1 });
+  const tripResult = validateTrip({
+    ...(body as Record<string, unknown>),
+    destinationId: trip.destinationId,
+  });
 
   const errors = [...profileResult.errors, ...tripResult.errors];
   if (errors.length > 0) {
@@ -95,13 +116,6 @@ export async function PATCH(
       }
       throw err;
     }
-  }
-
-  const db = getDb();
-
-  const trip = db.select().from(trips).where(eq(trips.id, tripId)).all()[0];
-  if (!trip) {
-    return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   }
 
   db.update(familyProfiles)

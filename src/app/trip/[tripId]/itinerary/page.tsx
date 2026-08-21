@@ -110,9 +110,14 @@ function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData
 
   // route
   const route = seg.payload as unknown as RouteResult | null;
-  const label = route?.walkingMinutes != null
-    ? `${route.walkingMinutes} min walk`
-    : "Route";
+  const label =
+    route?.walkingMinutes != null ? (
+      <span>
+        <span style={{ fontFamily: "var(--font-mono)" }}>{route.walkingMinutes}</span> min walk
+      </span>
+    ) : (
+      "Route"
+    );
   return {
     id: `route-${index}`,
     marker: route?.safetyConcern ? "dot-warn" : "dot-hollow",
@@ -151,7 +156,7 @@ function DaySection({ day }: { day: DayResponse }) {
         >
           {formatDate(day.date)}
         </div>
-        <div className="flex items-center gap-3 text-xs" style={{ color: "var(--fg-3)" }}>
+        <div className="flex items-center gap-3 text-xs" style={{ color: "var(--fg-3)", fontFamily: "var(--font-mono)" }}>
           {placeCount > 0 && <span>{placeCount} place{placeCount !== 1 ? "s" : ""}</span>}
           {walkMinutes > 0 && <span>{walkMinutes} min walk</span>}
         </div>

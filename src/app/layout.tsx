@@ -18,7 +18,7 @@ const cormorant = Cormorant_Garamond({
 
 export const metadata: Metadata = {
   title: "FamTripPlanner",
-  description: "Tokyo family trip planner",
+  description: "Family trip planner for any destination",
 };
 
 export default function RootLayout({

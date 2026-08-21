@@ -65,7 +65,8 @@ interface DetailsResponse {
 
 export async function textSearchPlaces(
   neighborhoodName: string,
-  category: "eat" | "visit"
+  category: "eat" | "visit",
+  city: string
 ): Promise<PlaceTextSearchResult[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
@@ -75,14 +76,20 @@ export async function textSearchPlaces(
 
   const categoryLabel =
     category === "eat" ? "restaurants" : "attractions and activities";
-  const query = `family ${categoryLabel} ${neighborhoodName} Tokyo`;
+  // city comes from the trip's actual destination (destinations.name) — no hardcoded
+  // "Tokyo" default (plan 2026-08-20-011 U2).
+  const query = `family ${categoryLabel} ${neighborhoodName} ${city}`;
 
   const url = new URL(
     "https://maps.googleapis.com/maps/api/place/textsearch/json"
   );
   url.searchParams.set("query", query);
   url.searchParams.set("language", "en");
-  url.searchParams.set("region", "jp");
+  // No region-bias param: `region` needs an ISO 3166-1 ccTLD code, and
+  // destinations.country is free text (e.g. "Japan" or "JP" depending on how the
+  // row was created) with no reliable code mapping in this codebase. Pinning a
+  // guessed/wrong code would be worse than no bias — the query text above already
+  // carries the real destination's city.
   url.searchParams.set("key", apiKey);
 
   try {

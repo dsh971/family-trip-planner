@@ -9,6 +9,7 @@ import {
   familyProfiles,
   itineraryDays,
   itinerarySegments,
+  destinations,
 } from "@/db/schema";
 import { eq, and, count } from "drizzle-orm";
 import { distributeDecisions, type DecisionItem } from "@/services/itinerary/scheduler";
@@ -34,6 +35,18 @@ export async function POST(request: Request) {
   const trip = db.select().from(trips).where(eq(trips.id, tripId)).all()[0];
   if (!trip) {
     return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+  }
+
+  // Real destination (city/country) for this trip — threaded into computeDayRoutes
+  // instead of the old hardcoded "Tokyo, Japan" fallback (plan 2026-08-20-011 U2
+  // follow-up), same pattern as the discovery route.
+  const destination = db
+    .select()
+    .from(destinations)
+    .where(eq(destinations.id, trip.destinationId))
+    .all()[0];
+  if (!destination) {
+    return NextResponse.json({ error: "Destination not found" }, { status: 404 });
   }
 
   const profile = db
@@ -124,7 +137,7 @@ export async function POST(request: Request) {
         };
       });
 
-    const routes = await computeDayRoutes(placeSegments, sas);
+    const routes = await computeDayRoutes(placeSegments, sas, destination.name, destination.country);
     routesByDay.set(day.date, routes);
   }
 

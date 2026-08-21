@@ -8,10 +8,15 @@ import {
 
 // ---------------------------------------------------------------------------
 // Destination — extensibility anchor (R6). One row per supported city.
-// Adding a new destination = adding one row here + a src/data/{city}/ dir.
+// Rows are created dynamically on demand from free-text entry (see
+// src/services/destinations/lookup.ts's findOrCreateDestination(), plan
+// 2026-08-20-011 U1) — src/data/{city}/ + src/db/seed.ts is now just a
+// dev/demo fallback for pre-populating fixtures, not the only path.
 // ---------------------------------------------------------------------------
 export const destinations = sqliteTable("destinations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  // .unique() already creates a unique index (destinations_slug_unique, confirmed
+  // in migrations/meta/0000_snapshot.json) — no additional index needed for U1.
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   country: text("country").notNull(),
@@ -24,6 +29,33 @@ export const destinations = sqliteTable("destinations", {
     .notNull(),
   // Citation string for the SafetyArea seed entries (e.g. OSAC report URL)
   safetyDataSource: text("safety_data_source").notNull(),
+  // Neighborhood-discovery research stage (U5). "not_started" | "in_progress"
+  // | "partial" | "complete" — see docs/plans/2026-08-20-011 state machine.
+  researchStatus: text("research_status").notNull().default("not_started"),
+  // Timestamp when the current/most-recent neighborhood-discovery run began.
+  researchStartedAt: integer("research_started_at", { mode: "timestamp" }),
+  // Timestamp when neighborhood-discovery last completed (fully or partially).
+  // Staleness shape follows places.enrichedAt: nullable, set on completion,
+  // compared against a 90-day TTL by the U4 orchestrator to trigger re-research.
+  researchedAt: integer("researched_at", { mode: "timestamp" }),
+  // IANA timezone identifier for this destination, e.g. "Asia/Tokyo",
+  // "Europe/Paris" (plan 2026-08-20-011 U9 calendar-export audit). Nullable
+  // and not yet populated/required anywhere — now that destinations are
+  // arbitrary (not just Tokyo), itinerarySegments.startTime/endTime ("HH:MM"
+  // wall-clock strings) are ambiguous without knowing which zone they're in.
+  // This column gives a future calendar-export unit somewhere to read that
+  // from; it does not itself change how times are computed or displayed.
+  timezone: text("timezone"),
+  // Timestamp when Wanderlust-Goat's local per-city data store was last
+  // hydrated via syncCity() for this destination (code review finding,
+  // 2026-08-21: the 0005 backfill marks pre-existing destinations'
+  // researchStatus "complete" without ever syncing WG for them, since
+  // isFirstResearch previously gated syncCity on researchStatus ===
+  // "not_started" — permanently skipping it for backfilled rows). Nullable;
+  // set once syncCity succeeds and never reset. Independent of
+  // researchStatus, which tracks neighborhood-discovery progress, not WG
+  // hydration.
+  wgSyncedAt: integer("wg_synced_at", { mode: "timestamp" }),
 });
 
 // ---------------------------------------------------------------------------
@@ -89,30 +121,55 @@ export const trips = sqliteTable("trips", {
 // ---------------------------------------------------------------------------
 // Neighborhood — scoped to a Destination (R6)
 // ---------------------------------------------------------------------------
-export const neighborhoods = sqliteTable("neighborhoods", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  destinationId: integer("destination_id")
-    .notNull()
-    .references(() => destinations.id, { onDelete: "cascade" }),
-  name: text("name").notNull(),
-  centroidLat: real("centroid_lat").notNull(),
-  centroidLng: real("centroid_lng").notNull(),
-  walkingRadiusMeters: integer("walking_radius_meters").notNull(),
-  familyFriendlinessScore: integer("family_friendliness_score").notNull(),
-  // JSON: { vibeTagline?: string; highlights: string[]; safetyNote: string; sampleBundle: string }
-  dayInTheLifePreview: text("day_in_the_life_preview", { mode: "json" })
-    .$type<{
-      vibeTagline?: string;
-      highlights: string[];
-      safetyNote: string;
-      sampleBundle: string;
-    }>()
-    .notNull(),
-  // JSON: string[] — source publications that informed score + preview
-  sources: text("sources", { mode: "json" })
-    .$type<string[]>()
-    .notNull(),
-});
+export const neighborhoods = sqliteTable(
+  "neighborhoods",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    destinationId: integer("destination_id")
+      .notNull()
+      .references(() => destinations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    centroidLat: real("centroid_lat").notNull(),
+    centroidLng: real("centroid_lng").notNull(),
+    walkingRadiusMeters: integer("walking_radius_meters").notNull(),
+    familyFriendlinessScore: integer("family_friendliness_score").notNull(),
+    // JSON: { vibeTagline?: string; highlights: string[]; safetyNote: string; sampleBundle: string }
+    dayInTheLifePreview: text("day_in_the_life_preview", { mode: "json" })
+      .$type<{
+        vibeTagline?: string;
+        highlights: string[];
+        safetyNote: string;
+        sampleBundle: string;
+      }>()
+      .notNull(),
+    // JSON: string[] — source publications that informed score + preview
+    sources: text("sources", { mode: "json" })
+      .$type<string[]>()
+      .notNull(),
+    // Place-research stage (U6). "not_started" | "in_progress" | "partial"
+    // | "complete" — same enum shape as destinations.researchStatus, but
+    // tracks this neighborhood's place-research pass, not the destination's
+    // neighborhood-discovery pass. See docs/plans/2026-08-20-011 state machine.
+    researchStatus: text("research_status").notNull().default("not_started"),
+    // Timestamp when the current/most-recent place-research run began.
+    researchStartedAt: integer("research_started_at", { mode: "timestamp" }),
+    // Timestamp when place-research last completed (fully or partially).
+    // Shape follows places.enrichedAt; compared against the 90-day TTL by
+    // the U4 orchestrator.
+    researchedAt: integer("researched_at", { mode: "timestamp" }),
+  },
+  (table) => [
+    // New for U1: neighborhoods had no unique constraint before this. Required
+    // as the onConflictDoUpdate conflict target for U5/U6's incremental upsert
+    // (mirroring places_place_id_neighborhood_idx) — without it, a research
+    // pass re-run for the same destination would insert duplicate neighborhood
+    // rows instead of updating in place.
+    uniqueIndex("neighborhoods_destination_id_name_idx").on(
+      table.destinationId,
+      table.name
+    ),
+  ]
+);
 
 // ---------------------------------------------------------------------------
 // SafetyArea — flagged districts per Destination (KTD-D, R13, R14)
@@ -234,6 +291,14 @@ export const itinerarySegments = sqliteTable("itinerary_segments", {
   }),
   // "scheduled" | "skipped" | "deferred" | "unscheduled-today" | "unscheduled"
   adjustmentState: text("adjustment_state").notNull().default("scheduled"),
+  // "HH:MM" wall-clock strings (plan 2026-08-20-011 U9 audit). Interpreted as
+  // the trip's destination-local time, paired with the parent ItineraryDay's
+  // `date` — NOT UTC and NOT the traveler's home timezone. Combined with
+  // `date` this is a naive/floating local datetime: unambiguous for display
+  // (today's only consumer), but a future calendar export (out of scope
+  // here, see plan R3) needs an explicit zone to produce a correct iCal
+  // DTSTART/DTEND, since destinations are no longer implicitly Asia/Tokyo.
+  // See destinations.timezone.
   startTime: text("start_time"), // "HH:MM"
   endTime: text("end_time"), // "HH:MM"
   // Type-specific data: route polyline, place snapshot, pacing block name, etc.

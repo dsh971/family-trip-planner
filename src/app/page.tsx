@@ -8,7 +8,10 @@ export default function Home() {
     <main
       className="min-h-screen flex flex-col relative overflow-hidden"
       style={{
-        background: "linear-gradient(160deg, var(--bg-0) 0%, color-mix(in srgb, var(--accent) 20%, var(--bg-0)) 100%)",
+        // Bold, full-bleed editorial hero — the one place in the app that
+        // earns the dark ink->malachite treatment (Hybrid direction, U8).
+        // Every other page stays on the warm silk surfaces.
+        background: "linear-gradient(160deg, var(--ink-900) 0%, var(--malachite-900) 55%, var(--malachite-800) 100%)",
       }}
     >
       {/* Push content below fixed AppHeader (h-11 = 44px) */}
@@ -19,22 +22,22 @@ export default function Home() {
         <div className="relative z-10 flex flex-col items-center gap-4 max-w-sm w-full">
           <p
             className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: "var(--accent)", letterSpacing: "0.2em" }}
+            style={{ color: "var(--malachite-300)", letterSpacing: "0.2em" }}
           >
-            Tokyo, Japan
+            Family Trip Planning
           </p>
 
           <h1
             className="text-6xl font-bold tracking-tight leading-none"
-            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+            style={{ fontFamily: "var(--font-display)", color: "var(--fg-on-ink)" }}
           >
             FamTrip
             <br />
             Planner
           </h1>
 
-          <p className="text-base mt-1" style={{ color: "var(--fg-2)" }}>
-            Plan your perfect Tokyo family adventure — neighborhoods, food, activities, all in one place.
+          <p className="text-base mt-1" style={{ color: "var(--silk-500)" }}>
+            Plan your perfect family adventure, anywhere — neighborhoods, food, activities, all in one place.
           </p>
 
           <Button variant="primary" size="lg" asChild className="mt-4 w-full">
@@ -46,12 +49,12 @@ export default function Home() {
       {/* Feature footer */}
       <div
         className="shrink-0 pb-8 flex justify-center gap-8 text-xs"
-        style={{ color: "var(--fg-3)" }}
+        style={{ color: "var(--silk-600)" }}
       >
         <span>Neighborhoods</span>
-        <span style={{ color: "var(--accent)" }}>·</span>
+        <span style={{ color: "var(--malachite-400)" }}>·</span>
         <span>Discover</span>
-        <span style={{ color: "var(--accent)" }}>·</span>
+        <span style={{ color: "var(--malachite-400)" }}>·</span>
         <span>Itinerary</span>
       </div>
     </main>

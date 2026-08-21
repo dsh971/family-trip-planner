@@ -12,6 +12,7 @@ import {
   Alert,
   EmptyState,
 } from "@sumiui/react";
+import { Utensils, Landmark } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
 
 interface DecisionRow {
@@ -105,16 +106,20 @@ export default function DecisionsPage() {
       {decisions.length > 0 && (
         <div className="flex gap-2">
           <span
-            className="rounded-full px-3 py-1 text-sm"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm"
             style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
           >
-            <span aria-hidden="true">🍜 </span>{countEat} restaurant{countEat !== 1 ? "s" : ""}
+            <Utensils size={13} aria-hidden="true" />
+            <span style={{ fontFamily: "var(--font-mono)" }}>{countEat}</span>
+            &nbsp;restaurant{countEat !== 1 ? "s" : ""}
           </span>
           <span
-            className="rounded-full px-3 py-1 text-sm"
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm"
             style={{ background: "var(--bg-2)", color: "var(--fg-2)" }}
           >
-            <span aria-hidden="true">🏛 </span>{countVisit} {countVisit !== 1 ? "activities" : "activity"}
+            <Landmark size={13} aria-hidden="true" />
+            <span style={{ fontFamily: "var(--font-mono)" }}>{countVisit}</span>
+            &nbsp;{countVisit !== 1 ? "activities" : "activity"}
           </span>
         </div>
       )}
@@ -163,34 +168,38 @@ export default function DecisionsPage() {
             ) : (
               <>
                 {filtered.map((d) => (
-                  <Card
-                    key={d.id}
-                    style={{
-                      borderLeft: `4px solid ${d.category === "eat" ? "var(--status-warning, #f59e0b)" : "var(--status-info, #3b82f6)"}`,
-                    }}
-                  >
+                  <Card key={d.id}>
                     <CardBody className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant={d.category === "eat" ? "warning" : "info"}>
+                            {d.category === "eat" ? "Eat" : "Visit"}
+                          </Badge>
+                          {d.worthTheDetour && <Badge variant="neutral">Detour</Badge>}
+                        </div>
                         <p
                           className="font-semibold text-sm truncate"
-                          style={{ color: "var(--fg-1)" }}
+                          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
                         >
                           {d.placeName ?? "—"}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2">
                           {d.rating !== null && (
-                            <span className="text-xs flex items-center gap-0.5" style={{ color: "var(--fg-2)" }}>
+                            <span
+                              className="text-xs flex items-center gap-0.5"
+                              style={{ color: "var(--fg-2)", fontFamily: "var(--font-mono)" }}
+                            >
                               <span className="text-yellow-500">★</span>
                               {d.rating.toFixed(1)}
                             </span>
                           )}
                           {d.priceLevel !== null && (
-                            <span className="text-xs" style={{ color: "var(--fg-2)" }}>
+                            <span
+                              className="text-xs"
+                              style={{ color: "var(--fg-2)", fontFamily: "var(--font-mono)" }}
+                            >
                               {"$".repeat(d.priceLevel)}
                             </span>
-                          )}
-                          {d.worthTheDetour && (
-                            <Badge variant="neutral">Detour</Badge>
                           )}
                         </div>
                       </div>
@@ -209,7 +218,8 @@ export default function DecisionsPage() {
                   className="text-xs text-center pt-2"
                   style={{ color: "var(--fg-3)", borderTop: "1px solid var(--line-1)" }}
                 >
-                  {filtered.length} {activeFilter === "eat" ? "restaurant" : "activity"}{filtered.length !== 1 ? "s" : ""} selected
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{filtered.length}</span>{" "}
+                  {activeFilter === "eat" ? "restaurant" : "activity"}{filtered.length !== 1 ? "s" : ""} selected
                 </p>
               </>
             )}

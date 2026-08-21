@@ -82,6 +82,9 @@ describe("U4: Neighborhood ranking", () => {
       familyFriendlinessScore: 80,
       dayInTheLifePreview: { highlights: [], safetyNote: "", sampleBundle: "" },
       sources: [] as string[],
+      researchStatus: "not_started",
+      researchStartedAt: null,
+      researchedAt: null,
     };
 
     const nearSafetyArea = {

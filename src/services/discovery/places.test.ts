@@ -34,7 +34,7 @@ describe("textSearchPlaces", () => {
       }),
     } as Response);
 
-    const results = await textSearchPlaces("Kichijoji", "eat");
+    const results = await textSearchPlaces("Kichijoji", "eat", "Tokyo");
     expect(results).toHaveLength(2);
     expect(results[0]!.placeId).toBe("ChIJ_place1");
     expect(results[0]!.name).toBe("Musashino Ramen");
@@ -48,7 +48,7 @@ describe("textSearchPlaces", () => {
     const fetchSpy = vi.fn();
     global.fetch = fetchSpy;
 
-    const results = await textSearchPlaces("Kichijoji", "eat");
+    const results = await textSearchPlaces("Kichijoji", "eat", "Tokyo");
     expect(results).toHaveLength(0);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -59,7 +59,7 @@ describe("textSearchPlaces", () => {
       status: 429,
     } as Response);
 
-    const results = await textSearchPlaces("Yanaka", "visit");
+    const results = await textSearchPlaces("Yanaka", "visit", "Tokyo");
     expect(results).toHaveLength(0);
   });
 
@@ -69,14 +69,14 @@ describe("textSearchPlaces", () => {
       json: async () => ({ status: "ZERO_RESULTS", results: [] }),
     } as Response);
 
-    const results = await textSearchPlaces("Shimokitazawa", "eat");
+    const results = await textSearchPlaces("Shimokitazawa", "eat", "Tokyo");
     expect(results).toHaveLength(0);
   });
 
   it("returns [] on network error", async () => {
     global.fetch = vi.fn().mockRejectedValueOnce(new Error("Network failure"));
 
-    const results = await textSearchPlaces("Kichijoji", "visit");
+    const results = await textSearchPlaces("Kichijoji", "visit", "Tokyo");
     expect(results).toHaveLength(0);
   });
 
@@ -96,7 +96,7 @@ describe("textSearchPlaces", () => {
       }),
     } as Response);
 
-    const results = await textSearchPlaces("Kichijoji", "visit");
+    const results = await textSearchPlaces("Kichijoji", "visit", "Tokyo");
     expect(results).toHaveLength(1);
     expect(results[0]!.rating).toBeNull();
     expect(results[0]!.reviewCount).toBeNull();
@@ -120,7 +120,7 @@ describe("textSearchPlaces", () => {
       }),
     } as Response);
 
-    const results = await textSearchPlaces("Kichijoji", "eat");
+    const results = await textSearchPlaces("Kichijoji", "eat", "Tokyo");
     expect(results[0]!.photoReference).toBe("CmRaAAAAtest_ref_123");
   });
 
@@ -140,8 +140,25 @@ describe("textSearchPlaces", () => {
       }),
     } as Response);
 
-    const results = await textSearchPlaces("Kichijoji", "visit");
+    const results = await textSearchPlaces("Kichijoji", "visit", "Tokyo");
     expect(results[0]!.photoReference).toBeNull();
+  });
+
+  // U2 (plan 2026-08-20-011): non-Tokyo destination must not silently get Tokyo
+  // query terms or a JP region bias — both used to be hardcoded defaults.
+  it("non-Tokyo destination: query carries the real city, not 'Tokyo', and no region param is set", async () => {
+    const fetchSpy = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: "OK", results: [] }),
+    } as Response);
+    global.fetch = fetchSpy;
+
+    await textSearchPlaces("Le Marais", "eat", "Paris");
+
+    const calledUrl = new URL(fetchSpy.mock.calls[0]![0] as string);
+    expect(calledUrl.searchParams.get("query")).toContain("Paris");
+    expect(calledUrl.searchParams.get("query")).not.toContain("Tokyo");
+    expect(calledUrl.searchParams.has("region")).toBe(false);
   });
 });
 

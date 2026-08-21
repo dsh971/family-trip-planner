@@ -46,6 +46,12 @@ body {
   overflow: hidden;
   height: 50vh;
   min-height: 280px;
+  /* Map chrome (Hybrid direction, U8): a defined border + a subtle warm
+     "map-ground" surface behind the tiles/pins while Leaflet loads or a
+     particular map has sparse coverage — silk-300 (--bg-2) rather than a
+     stark white/gray, consistent with the app's warm silk/ink palette. */
+  border: 1px solid var(--line-1);
+  background: var(--bg-2);
 }
 
 .discovery-card-col,

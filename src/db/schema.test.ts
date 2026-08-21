@@ -307,6 +307,35 @@ describe("U1: Schema and migrations", () => {
     }).not.toThrow();
   });
 
+  it("round-trips destinations.timezone, nullable and settable (U9 calendar-export audit)", () => {
+    const noTz = seedDestination(db, "tokyo");
+    expect(noTz.timezone).toBeNull();
+
+    const withTz = ins(
+      db
+        .insert(schema.destinations)
+        .values({
+          slug: "paris",
+          name: "Paris",
+          country: "FR",
+          defaultWalkingRadiusMeters: 1200,
+          localeValidators: [],
+          safetyDataSource: "OSAC France Crime & Safety Report 2024",
+          timezone: "Europe/Paris",
+        })
+        .returning()
+        .all()
+    );
+    expect(withTz.timezone).toBe("Europe/Paris");
+
+    const reloaded = db
+      .select()
+      .from(schema.destinations)
+      .where(eq(schema.destinations.id, withTz.id))
+      .all()[0];
+    expect(reloaded?.timezone).toBe("Europe/Paris");
+  });
+
   it("cascades Trip deletion to Decision and ItineraryDay rows", () => {
     const dest = seedDestination(db);
     const profile = seedProfile(db);

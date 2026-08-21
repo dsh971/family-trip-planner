@@ -3,6 +3,21 @@ import { getDb } from "@/db/client";
 import { trips } from "@/db/schema";
 import { validateTrip } from "@/services/profile/validation";
 import { geocodeHotelAddress, HotelNotFoundError } from "@/services/trips/geocoding";
+import { findOrCreateDestination, InvalidDestinationNameError } from "@/services/destinations/lookup";
+import { createRateLimiter } from "@/lib/rateLimit";
+
+// Code review finding (2026-08-21): this route's destinationName branch
+// calls the exact same findOrCreateDestination() that
+// src/app/api/destinations/route.ts's POST rate-limits — but until now this
+// route had no rate limiting of its own, so submitting a minimal
+// { familyProfileId, destinationName } payload here (skipping the rest of
+// trip validation) routed around that limiter entirely. Same rationale and
+// budget as the dedicated /api/destinations route.
+const destinationCreationLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
+
+export function _resetDestinationCreationRateLimitForTesting(): void {
+  destinationCreationLimiter.reset();
+}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -18,7 +33,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ errors: [{ field: "familyProfileId", message: "Required" }] }, { status: 400 });
   }
 
-  const result = validateTrip(body);
+  const db = getDb();
+
+  // Resolve a free-text destination (name + optional country) into a real
+  // destinationId via U1's findOrCreateDestination, when the caller doesn't already
+  // have a numeric destinationId. This replaces the old hardcoded `destinationId: 1`
+  // trip-creation payload (plan 2026-08-20-011 U2) — Profile now sends a destination
+  // name instead. U3 will later replace this minimal name-based resolution with a
+  // dedicated search/create UI and /api/destinations endpoint; this is the interim
+  // path that unblocks trip creation for any destination in the meantime.
+  let destinationId = typeof bodyObj.destinationId === "number" ? bodyObj.destinationId : undefined;
+  if (destinationId === undefined && typeof bodyObj.destinationName === "string") {
+    if (destinationCreationLimiter.isRateLimited()) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+    try {
+      const destination = findOrCreateDestination(db, {
+        name: bodyObj.destinationName,
+        country: typeof bodyObj.destinationCountry === "string" ? bodyObj.destinationCountry : undefined,
+      });
+      destinationId = destination.id;
+    } catch (err) {
+      if (err instanceof InvalidDestinationNameError) {
+        return NextResponse.json(
+          { errors: [{ field: "destinationName", message: err.message }] },
+          { status: 400 }
+        );
+      }
+      throw err;
+    }
+  }
+
+  const result = validateTrip({ ...bodyObj, destinationId });
   if (!result.valid) {
     return NextResponse.json({ errors: result.errors }, { status: 400 });
   }
@@ -45,7 +91,6 @@ export async function POST(request: Request) {
     }
   }
 
-  const db = getDb();
   const rows = db
     .insert(trips)
     .values({

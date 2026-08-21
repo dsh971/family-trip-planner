@@ -213,6 +213,51 @@ describe("POST /api/discovery", () => {
     expect(eat1!.goodForChildren).toBe(true);
   });
 
+  // Code review fix (2026-08-21, correctness P1): the cache-aware fast path
+  // originally checked only researchStatus === "complete", excluding
+  // "partial" — since this route never calls markComplete/markPartial
+  // itself, a partial run's neighborhood stayed "partial" forever and
+  // re-paid the full external API cost on every visit.
+  it("cache-aware fast path: a 'partial' (not stale) neighborhood is read from persisted places, no live re-research", async () => {
+    const { trip, neighborhood } = seedWorld(db);
+    const { eq: eqFn } = await import("drizzle-orm");
+
+    db.update(schema.neighborhoods)
+      .set({ researchStatus: "partial", researchedAt: new Date() })
+      .where(eqFn(schema.neighborhoods.id, neighborhood.id))
+      .run();
+
+    db.insert(schema.places)
+      .values({
+        neighborhoodId: neighborhood.id,
+        placeId: "ChIJ_partial_cached",
+        name: "Partially Researched Ramen",
+        category: "eat",
+        lat: 35.702,
+        lng: 139.580,
+        sources: ["google-places-text-search"],
+        corroborationScore: 1,
+      })
+      .run();
+
+    // Nearby Search (transit stations) runs regardless of the places cache
+    // path — only the Text Search + Details calls are what the cache-aware
+    // fast path is meant to skip.
+    const fetchSpy = vi.fn().mockResolvedValue(
+      { ok: true, json: async () => ({ status: "OK", results: [] }) } as Response
+    );
+    global.fetch = fetchSpy;
+
+    const res = await callPost(trip.id);
+    expect(res.status).toBe(200);
+
+    const json = await res.json() as { results: Array<{ placeId: string }> };
+    expect(json.results.some((r) => r.placeId === "ChIJ_partial_cached")).toBe(true);
+
+    const requestedUrls = fetchSpy.mock.calls.map((call) => String(call[0]));
+    expect(requestedUrls.every((url) => !url.includes("/textsearch/"))).toBe(true);
+  });
+
   it("missing API key: Text Search returns [], falls back to empty DB", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "");
     const { trip } = seedWorld(db);

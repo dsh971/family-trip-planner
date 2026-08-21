@@ -47,13 +47,28 @@ describe("U5: Wanderlust GOAT client", () => {
     execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
     const { discoverGoat } = await import("./client");
-    const result = await discoverGoat("Kichijoji", "eat", 1200);
+    const result = await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
 
     expect(result.anchor.city).toBe("Kichijoji");
     expect(result.results).toHaveLength(2);
     expect(result.results[0]!.name).toBe("Musashino Supper Club");
     expect(result.results[0]!.score.total).toBe(82);
     expect(result.trace.Region).toBe("JP");
+  });
+
+  // U2 (plan 2026-08-20-011): buildAnchorName must use the real destination's
+  // city/country, not the old Tokyo/Japan default — verified via the anchor
+  // positional arg passed to the WG CLI.
+  it("discoverGoat builds the anchor from a non-Japan destination's real city/country", async () => {
+    execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
+
+    const { discoverGoat } = await import("./client");
+    await discoverGoat("Le Marais", "eat", 800, "Paris", "France");
+
+    const callArgs = execMock.mock.calls[0]![1] as string[];
+    expect(callArgs[1]).toBe("Le Marais, Paris, France");
+    expect(callArgs[1]).not.toContain("Tokyo");
+    expect(callArgs[1]).not.toContain("Japan");
   });
 
   it("routeView returns correctly typed results from route-view fixture", async () => {
@@ -88,29 +103,29 @@ describe("U5: Wanderlust GOAT client", () => {
     execMock.mockRejectedValueOnce(err);
 
     const { discoverGoat } = await import("./client");
-    await expect(discoverGoat("Kichijoji", "eat", 1200)).rejects.toThrow(WGCommandError);
+    await expect(discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan")).rejects.toThrow(WGCommandError);
   });
 
   it("malformed JSON from subprocess surfaces as WGCommandError", async () => {
     execMock.mockResolvedValueOnce({ stdout: "not valid json {{{", stderr: "" });
 
     const { discoverGoat } = await import("./client");
-    await expect(discoverGoat("Kichijoji", "eat", 1200)).rejects.toThrow(WGCommandError);
+    await expect(discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan")).rejects.toThrow(WGCommandError);
   });
 
   it("reports WGUnavailableError when binary is not on PATH", async () => {
     whichMock.mockResolvedValueOnce(false);
 
     const { discoverGoat } = await import("./client");
-    await expect(discoverGoat("Kichijoji", "eat", 1200)).rejects.toThrow(WGUnavailableError);
+    await expect(discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan")).rejects.toThrow(WGUnavailableError);
   });
 
   it("two identical queries hit the cache — execFileAsync called only once", async () => {
     execMock.mockResolvedValue({ stdout: goatFixture, stderr: "" });
 
     const { discoverGoat } = await import("./client");
-    await discoverGoat("Kichijoji", "eat", 1200);
-    await discoverGoat("Kichijoji", "eat", 1200);
+    await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
+    await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
 
     expect(execMock).toHaveBeenCalledTimes(1);
   });
@@ -120,7 +135,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "eat", 400);
+      await discoverGoat("Kichijoji", "eat", 400, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -145,7 +160,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "visit", 400);
+      await discoverGoat("Kichijoji", "visit", 400, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -162,7 +177,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "eat", 1200);
+      await discoverGoat("Kichijoji", "eat", 1200, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -175,7 +190,7 @@ describe("U5: Wanderlust GOAT client", () => {
       execMock.mockResolvedValueOnce({ stdout: goatFixture, stderr: "" });
 
       const { discoverGoat } = await import("./client");
-      await discoverGoat("Kichijoji", "eat", 100);
+      await discoverGoat("Kichijoji", "eat", 100, "Tokyo", "Japan");
 
       const callArgs = execMock.mock.calls[0]![1] as string[];
 
@@ -189,10 +204,80 @@ describe("U5: Wanderlust GOAT client", () => {
 
       const { discoverGoat } = await import("./client");
       // 400m → round(400/80)=5, 390m → round(390/80)=round(4.875)=5 — same key
-      await discoverGoat("Kichijoji", "eat", 400);
-      await discoverGoat("Kichijoji", "eat", 390);
+      await discoverGoat("Kichijoji", "eat", 400, "Tokyo", "Japan");
+      await discoverGoat("Kichijoji", "eat", 390, "Tokyo", "Japan");
 
       expect(execMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // U5 (plan 2026-08-20-011): syncCity wrapper around `sync-city`, callable
+  // per-destination instead of only at container startup for Tokyo.
+  describe("syncCity", () => {
+    it("invokes sync-city with the given city/country and non-interactive flags", async () => {
+      execMock.mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+      const { syncCity } = await import("./client");
+      await syncCity("Paris", "France");
+
+      const callArgs = execMock.mock.calls[0]![1] as string[];
+      expect(callArgs[0]).toBe("sync-city");
+      expect(callArgs[1]).toBe("Paris");
+      const countryIdx = callArgs.indexOf("--country");
+      expect(countryIdx).toBeGreaterThan(-1);
+      expect(callArgs[countryIdx + 1]).toBe("France");
+      expect(callArgs).toContain("--no-input");
+      expect(callArgs).toContain("--no-color");
+      expect(callArgs).toContain("--yes");
+    });
+
+    it("propagates WGUnavailableError when the binary is not on PATH", async () => {
+      whichMock.mockResolvedValueOnce(false);
+
+      const { syncCity } = await import("./client");
+      await expect(syncCity("Paris", "France")).rejects.toThrow(WGUnavailableError);
+    });
+
+    it("propagates WGCommandError on a non-zero exit code", async () => {
+      const err = Object.assign(new Error("sync failed"), { code: 1, stderr: "sync failed" });
+      execMock.mockRejectedValueOnce(err);
+
+      const { syncCity } = await import("./client");
+      await expect(syncCity("Paris", "France")).rejects.toThrow(WGCommandError);
+    });
+
+    it("is not cached — two calls invoke the CLI twice", async () => {
+      execMock.mockResolvedValue({ stdout: "", stderr: "" });
+
+      const { syncCity } = await import("./client");
+      await syncCity("Paris", "France");
+      await syncCity("Paris", "France");
+
+      expect(execMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // Code review fix (2026-08-21, reliability P1): execFileAsync previously
+  // had no timeout, so a hang (syncCity is now awaited inside a live SSE
+  // request) would leak the orchestrator's run registry entry forever. See
+  // runCommand's COMMAND_TIMEOUT_MS comment for the full rationale.
+  describe("command timeout", () => {
+    it("passes a timeout option to execFileAsync", async () => {
+      execMock.mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+      const { syncCity } = await import("./client");
+      await syncCity("Paris", "France");
+
+      const options = execMock.mock.calls[0]![2] as { timeout?: number };
+      expect(options?.timeout).toBeGreaterThan(0);
+    });
+
+    it("surfaces a timed-out call as a WGCommandError rather than hanging", async () => {
+      const err = Object.assign(new Error("killed"), { killed: true, signal: "SIGTERM" });
+      execMock.mockRejectedValueOnce(err);
+
+      const { syncCity } = await import("./client");
+      await expect(syncCity("Paris", "France")).rejects.toThrow(WGCommandError);
     });
   });
 });

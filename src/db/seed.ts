@@ -1,3 +1,11 @@
+// Dev/demo fallback seeding only (plan 2026-08-20-011, U1). This is no longer
+// the only way a `destinations` row can come to exist — dynamic destinations
+// are created on demand via src/services/destinations/lookup.ts's
+// findOrCreateDestination(), and neighborhood/place data for them comes from
+// the async research pipeline (U5/U6), not from static src/data/{city}/ JSON.
+// This script remains useful for local dev and demos: it upserts the bundled
+// city fixtures (currently just Tokyo) so there's populated data to develop
+// against without waiting on a live research run.
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";

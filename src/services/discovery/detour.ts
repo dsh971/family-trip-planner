@@ -74,7 +74,10 @@ export async function checkDetourViability(
 
 // Build a canonical named anchor string for a neighborhood centroid fallback (KTD-H).
 // This triggers WG's JP-specific validators when `country` resolves to Japan.
-export function buildNeighborhoodAnchor(neighborhoodName: string, city = "Tokyo", country = "Japan"): string {
+// city/country come from the trip's actual destinations row (plan 2026-08-20-011 U2
+// follow-up) — no default; every caller must supply the real destination instead of
+// silently getting Tokyo/Japan for destinations that aren't Tokyo.
+export function buildNeighborhoodAnchor(neighborhoodName: string, city: string, country: string): string {
   return `${neighborhoodName}, ${city}, ${country}`;
 }
 

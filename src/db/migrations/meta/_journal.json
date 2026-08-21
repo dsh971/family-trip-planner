@@ -36,6 +36,27 @@
       "when": 1784427794000,
       "tag": "0004_photo_url",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787258426837,
+      "tag": "0005_research_status_and_dynamic_destinations",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787267149694,
+      "tag": "0006_destinations_timezone",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1787329565848,
+      "tag": "0007_destinations_wg_synced_at",
+      "breakpoints": true
     }
   ]
 }
