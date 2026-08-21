@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { neighborhoods, safetyAreas, trips, familyProfiles, destinations } from "@/db/schema";
+import { neighborhoods, safetyAreas, trips, familyProfiles, destinations, places } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { findNearbyTransitStations } from "@/services/discovery/places";
 import { filterAndRankCandidates, type DiscoveryCandidate } from "@/services/discovery/filters";
@@ -11,7 +11,14 @@ import { filterAndRankCandidates, type DiscoveryCandidate } from "@/services/dis
 // (src/app/api/neighborhoods/[id]/research/route.ts) can reuse it instead of
 // duplicating it. Behavior here is unchanged — this route just drains the
 // generator into an array where it used to build that array inline.
-import { researchNeighborhoodPlaces, createResearchAccumulators } from "@/services/discovery/research";
+import {
+  researchNeighborhoodPlaces,
+  createResearchAccumulators,
+  placeRowToCandidateBase,
+  finalizeDistances,
+} from "@/services/discovery/research";
+import { isStale } from "@/services/research/orchestrator";
+import { checkAvailability } from "@/services/wanderlust-goat/client";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -63,12 +70,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Destination not found" }, { status: 404 });
   }
 
-  const acc = createResearchAccumulators();
-  const candidates: DiscoveryCandidate[] = [];
-  for await (const candidate of researchNeighborhoodPlaces(db, neighborhood, destination, acc)) {
-    candidates.push(candidate);
+  // Cache-aware fast path (plan 2026-08-20-011 U7): a neighborhood already
+  // fully researched via the U6 SSE route (complete, not stale) is read
+  // straight from the DB instead of re-running the full Google Places +
+  // Wanderlust-Goat pass again here — mirrors the exact cached-path pattern
+  // src/app/api/neighborhoods/[id]/research/route.ts already uses. Without
+  // this, every visit to the Discovery page would re-pay the external API
+  // cost the SSE research run already just paid, even though the U6 route
+  // marked this neighborhood complete moments earlier. Only not_started,
+  // in_progress, partial, or stale-complete neighborhoods still take the
+  // live research path below.
+  let candidates: DiscoveryCandidate[];
+  let openingHoursMap: Map<string, Array<{ startTime: string }>>;
+  let wgDiscoverSucceeded: boolean;
+
+  if (neighborhood.researchStatus === "complete" && !isStale(neighborhood.researchedAt)) {
+    const existing = db.select().from(places).where(eq(places.neighborhoodId, neighborhood.id)).all();
+    candidates = finalizeDistances(existing.map(placeRowToCandidateBase), neighborhood);
+    openingHoursMap = new Map(
+      existing.map((p) => [p.placeId, (p.openingHours as Array<{ startTime: string }>) ?? []])
+    );
+    wgDiscoverSucceeded = await checkAvailability();
+  } else {
+    const acc = createResearchAccumulators();
+    candidates = [];
+    for await (const candidate of researchNeighborhoodPlaces(db, neighborhood, destination, acc)) {
+      candidates.push(candidate);
+    }
+    openingHoursMap = acc.openingHoursMap;
+    wgDiscoverSucceeded = acc.wgDiscoverSucceeded;
   }
-  const { openingHoursMap, wgDiscoverSucceeded } = acc;
 
   const profile = db
     .select()

@@ -199,6 +199,15 @@ export async function GET(
     return NextResponse.json({ error: "Destination not found" }, { status: 404 });
   }
 
+  // U7 (plan 2026-08-20-011): manual re-research trigger support. `force`
+  // bypasses the cached/fresh fast-path below so a `complete`, non-stale
+  // destination re-enters research as if not_started — but does NOT
+  // re-trigger syncCity, since runResearch's own isFirstResearch check
+  // (destination.researchStatus === "not_started") is untouched by this
+  // flag and this destination's status is still "complete" here, not
+  // "not_started". Only neighborhood discovery re-runs.
+  const force = new URL(request.url).searchParams.get("force") === "true";
+
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
@@ -208,7 +217,7 @@ export async function GET(
         // already-persisted neighborhoods immediately. Still shaped as SSE
         // events for a consistent client contract, but with no research run
         // and no wait state.
-        if (destination.researchStatus === "complete" && !isStale(destination.researchedAt)) {
+        if (!force && destination.researchStatus === "complete" && !isStale(destination.researchedAt)) {
           const existing = db
             .select()
             .from(neighborhoods)

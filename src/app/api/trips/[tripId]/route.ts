@@ -34,6 +34,10 @@ export async function GET(
     // Exposed so client pages (e.g. neighborhoods/page.tsx) can look up this trip's
     // real destination instead of hardcoding destinationId (plan 2026-08-20-011 U2).
     destinationId: row.trips.destinationId,
+    // Exposed so client pages (e.g. discovery/page.tsx, plan 2026-08-20-011
+    // U7) can open the U6 SSE research stream for this trip's selected
+    // neighborhood without a second round-trip.
+    selectedNeighborhoodId: row.trips.selectedNeighborhoodId,
     hotelName: row.trips.hotelName,
     lodgingAnchorLat: row.trips.lodgingAnchorLat,
     lodgingAnchorLng: row.trips.lodgingAnchorLng,

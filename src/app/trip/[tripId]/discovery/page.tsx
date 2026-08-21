@@ -13,6 +13,8 @@ import {
 } from "@sumiui/react";
 import { CheckCircle2 } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
+import { useResearchStream } from "@/components/ui/useResearchStream";
+import ResearchHighlight from "@/components/ui/ResearchHighlight";
 
 const DiscoveryMap = dynamic(
   () => import("@/components/ui/DiscoveryMap"),
@@ -56,6 +58,38 @@ interface DiscoveryResponse {
   lodgingLat: number | null;
   lodgingLng: number | null;
   transitStations: TransitStation[];
+}
+
+// U7 (plan 2026-08-20-011): shape of the raw "place" SSE events streamed by
+// src/app/api/neighborhoods/[id]/research/route.ts (U6) — a DiscoveryCandidate
+// before family-profile filtering/ranking/transit-station composition
+// (which stays server-side; see runDiscovery below). Used only to render
+// real, already-persisted place cards progressively during the
+// "researching" wait state — the authoritative, filtered/ranked list still
+// comes from POST /api/discovery once the run settles.
+interface RawPlaceCandidate {
+  placeId: string;
+  name: string;
+  category: "eat" | "visit";
+  lat: number;
+  lng: number;
+  rating: number | null;
+  reviewCount: number | null;
+  priceLevel: number | null;
+  types: string[];
+  goodForChildren: boolean | null;
+  menuForChildren: boolean | null;
+  sources: string[];
+  corroborationScore: number;
+  distanceFromCentroidMeters: number;
+  worthTheDetour: boolean;
+  photoReference: string | null;
+  description: string | null;
+}
+
+interface TripSummary {
+  id: number;
+  selectedNeighborhoodId: number | null;
 }
 
 type FilterValue = "all" | "eat" | "visit";
@@ -324,9 +358,10 @@ export default function DiscoveryPage() {
   const tripId = Number(params.tripId);
   const router = useRouter();
 
-  const [state, setState] = useState<"loading" | "done" | "error">("loading");
+  const [trip, setTrip] = useState<TripSummary | null>(null);
+  const [tripError, setTripError] = useState<string | null>(null);
   const [data, setData] = useState<DiscoveryResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterValue>("all");
   const [decisions, setDecisions] = useState<Record<string, "yes" | "no">>({});
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
@@ -342,9 +377,34 @@ export default function DiscoveryPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxRef]);
 
+  // Trip must be fetched first — its selectedNeighborhoodId is what the U6
+  // SSE research stream is scoped to (plan 2026-08-20-011 U7).
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch(`/api/trips/${tripId}`);
+      if (!res.ok) {
+        setTripError("Failed to load trip");
+        return;
+      }
+      const json = await res.json() as TripSummary;
+      setTrip(json);
+    })();
+  }, [tripId]);
+
+  const researchUrl = trip?.selectedNeighborhoodId
+    ? `/api/neighborhoods/${trip.selectedNeighborhoodId}/research`
+    : null;
+  const research = useResearchStream<{ place?: RawPlaceCandidate }>(researchUrl, {
+    itemEventNames: ["place"],
+  });
+
+  // Finalize step: family-profile filtering/ranking + transit-station
+  // composition, which stays server-side (POST /api/discovery, made
+  // cache-aware in this unit so it reads the just-completed SSE run's
+  // persisted results instead of re-researching). Runs once the SSE run
+  // settles into a terminal, non-error status.
   const runDiscovery = useCallback(async () => {
-    setState("loading");
-    setError(null);
+    setFinalizeError(null);
     try {
       const res = await fetch("/api/discovery", {
         method: "POST",
@@ -357,16 +417,15 @@ export default function DiscoveryPage() {
       }
       const json = await res.json() as DiscoveryResponse;
       setData(json);
-      setState("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-      setState("error");
+      setFinalizeError(err instanceof Error ? err.message : "Unknown error");
     }
   }, [tripId]);
 
   useEffect(() => {
+    if (research.status !== "complete" && research.status !== "partial") return;
     void runDiscovery();
-  }, [runDiscovery]);
+  }, [research.status, runDiscovery]);
 
   function handleDecide(placeId: string, action: "yes" | "no", worthTheDetour: boolean) {
     setDecisions((prev) => ({ ...prev, [placeId]: action }));
@@ -380,16 +439,31 @@ export default function DiscoveryPage() {
 
   const addedCount = Object.values(decisions).filter((d) => d === "yes").length;
 
-  const _filtered =
-    data?.results.filter((p) => activeFilter === "all" || p.category === activeFilter) ?? [];
+  const isErrored = research.status === "error";
+  const isResearching = research.status === "researching" || research.status === "not_started";
+  const hasFinal = data !== null;
+
+  // Raw stream items, rendered as real (already-persisted) place cards
+  // during the "researching" wait state — the same PlaceCard/PlaceCardSkeleton
+  // pattern discovery/page.tsx already used for its old blanket loading
+  // state, now filled in progressively instead of all-at-once. Once the
+  // finalize step (runDiscovery) resolves, `data.results` (family-filtered,
+  // ranked, transit/lodging-aware) takes over as the source of truth.
+  const rawPlaces: DiscoveryPlace[] = research.items
+    .filter((i) => i.type === "place" && i.data.place)
+    .map((i, idx) => ({ ...(i.data.place as RawPlaceCandidate), rankPosition: idx + 1 }));
+
+  const sourceResults: DiscoveryPlace[] = hasFinal ? (data as DiscoveryResponse).results : rawPlaces;
+
+  const _filtered = sourceResults.filter((p) => activeFilter === "all" || p.category === activeFilter);
   const _seenIds = new Set<string>();
   const visiblePlaces = _filtered.filter((p) => {
     if (_seenIds.has(p.placeId)) return false;
     _seenIds.add(p.placeId);
     return true;
   });
-  const countEat = data?.results.filter((p) => p.category === "eat").length ?? 0;
-  const countVisit = data?.results.filter((p) => p.category === "visit").length ?? 0;
+  const countEat = sourceResults.filter((p) => p.category === "eat").length;
+  const countVisit = sourceResults.filter((p) => p.category === "visit").length;
 
   // Highlight the map pin for the topmost card visible in the scroll container.
   // The trip layout wraps pages in a fixed div with overflow-y:auto — window never scrolls,
@@ -397,7 +471,7 @@ export default function DiscoveryPage() {
   // "Topmost visible" = smallest rect.top that is still >= containerTop in viewport coords.
   // Fires once on mount (for initial selection) and then on every scroll event.
   useEffect(() => {
-    if (state !== "done") return;
+    if (!hasFinal) return;
 
     function findScrollContainer(el: HTMLElement): HTMLElement | null {
       let parent = el.parentElement;
@@ -416,7 +490,7 @@ export default function DiscoveryPage() {
     function selectTopCard() {
       if (!scrollHighlightEnabled.current) return;
 
-      const containerEl = scrollEl instanceof Window ? null : scrollEl as HTMLElement;
+      const containerEl = scrollEl === window ? null : scrollEl as HTMLElement;
       const containerTop = containerEl ? containerEl.getBoundingClientRect().top : 0;
 
       let firstVisibleId: string | null = null;
@@ -444,7 +518,7 @@ export default function DiscoveryPage() {
       rafId = requestAnimationFrame(() => { rafId = null; selectTopCard(); });
     }
 
-    const target = scrollEl instanceof Window ? window : scrollEl as HTMLElement;
+    const target = scrollEl === window ? window : scrollEl as HTMLElement;
     target.addEventListener("scroll", onScroll, { passive: true } as AddEventListenerOptions);
     selectTopCard(); // set initial selection without waiting for a scroll event
 
@@ -452,7 +526,15 @@ export default function DiscoveryPage() {
       target.removeEventListener("scroll", onScroll);
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [state]);
+  }, [hasFinal]);
+
+  if (tripError) {
+    return (
+      <main className="max-w-2xl mx-auto p-4 pt-6">
+        <Alert variant="danger">{tripError}</Alert>
+      </main>
+    );
+  }
 
   return (
     <main
@@ -477,28 +559,48 @@ export default function DiscoveryPage() {
         </p>
       </div>
 
-      {state === "loading" && (
-        <div className="discovery-layout">
-          <div
-            className="discovery-map-col animate-pulse"
-            style={{ background: "var(--line-2)" }}
-          />
-          <div className="discovery-card-col space-y-4">
-            {[1, 2, 3, 4].map((n) => <PlaceCardSkeleton key={n} />)}
-          </div>
-        </div>
+      {isErrored && (
+        <Alert variant="danger">
+          {research.errorMessage ?? "Couldn't load places."}
+          <Button variant="ghost" size="sm" className="ml-2" onClick={() => research.retry()}>
+            Try again
+          </Button>
+        </Alert>
       )}
 
-      {state === "error" && (
+      {finalizeError && (
         <Alert variant="danger">
-          {error}
+          {finalizeError}
           <Button variant="ghost" size="sm" className="ml-2" onClick={() => { void runDiscovery(); }}>
             Try again
           </Button>
         </Alert>
       )}
 
-      {state === "done" && data && (
+      {!isErrored && sourceResults.length === 0 && isResearching && (
+        // Progressive-reveal wait state (R6, R9, AE1): a highlight blurb plus
+        // dimension-matched skeletons — real place cards join in below (in
+        // the branch below) as soon as any "place" SSE events resolve.
+        // aria-live="polite" announces each new arrival to screen readers.
+        <div className="discovery-layout" aria-live="polite">
+          <div className="discovery-map-col animate-pulse" style={{ background: "var(--line-2)" }} />
+          <div className="discovery-card-col space-y-4">
+            <ResearchHighlight text="Finding great spots for your family nearby…" label="While we search…" />
+            {[1, 2, 3, 4].map((n) => <PlaceCardSkeleton key={n} />)}
+          </div>
+        </div>
+      )}
+
+      {!isErrored && sourceResults.length === 0 && !isResearching && (
+        <div className="discovery-layout">
+          <div className="discovery-map-col" />
+          <div className="discovery-card-col">
+            <EmptyState title="No places yet" description="Nothing found in this category." />
+          </div>
+        </div>
+      )}
+
+      {!isErrored && sourceResults.length > 0 && (
         <>
           <div className="discovery-layout">
             {/* Map — first in DOM: above cards on mobile, right side on desktop */}
@@ -534,7 +636,7 @@ export default function DiscoveryPage() {
                   const active = activeFilter === pill.value;
                   const count =
                     pill.value === "all"
-                      ? (data?.results.length ?? 0)
+                      ? sourceResults.length
                       : pill.value === "eat"
                         ? countEat
                         : countVisit;
@@ -556,7 +658,10 @@ export default function DiscoveryPage() {
                 })}
               </div>
 
-              <div className="space-y-4 mt-4">
+              <div className="space-y-4 mt-4" aria-live="polite">
+                {isResearching && !hasFinal && (
+                  <ResearchHighlight text="Finding great spots for your family nearby…" label="While we search…" />
+                )}
                 {visiblePlaces.length === 0 ? (
                   <EmptyState
                     title="No places yet"
@@ -585,6 +690,11 @@ export default function DiscoveryPage() {
                         isHighlighted={place.placeId === selectedPlaceId}
                         onImageClick={setLightboxRef}
                         distanceLabel={(() => {
+                          // No finalized data yet (still researching) — the
+                          // lodging/transit-aware label is computed once the
+                          // finalize step (runDiscovery) resolves; until
+                          // then, a simple neutral fallback.
+                          if (!data) return "Nearby";
                           if (data.lodgingLat !== null && data.lodgingLng !== null) {
                             const distFromHotel = haversineMeters(data.lodgingLat, data.lodgingLng, place.lat, place.lng);
                             if (distFromHotel <= HOTEL_WALK_THRESHOLD_METERS) {
@@ -612,6 +722,7 @@ export default function DiscoveryPage() {
                     </div>
                   ))
                 )}
+                {isResearching && !hasFinal && <PlaceCardSkeleton />}
               </div>
 
               <button
