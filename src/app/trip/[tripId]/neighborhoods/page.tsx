@@ -12,6 +12,7 @@ import {
   Skeleton,
   EmptyState,
 } from "@sumiui/react";
+import { Building2, Users } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
@@ -115,16 +116,16 @@ function NeighborhoodCardSkeleton() {
   return (
     <div
       className="animate-pulse rounded-lg p-4 space-y-2"
-      style={{ border: "1px solid var(--line-1)", background: "var(--bg-0)" }}
+      style={{ border: "1px solid var(--line-1)", background: "var(--bg-1)" }}
     >
       <div className="flex items-center gap-2">
-        <div className="w-6 h-6 rounded-full shrink-0" style={{ background: "var(--line-2)" }} />
-        <div className="h-4 rounded w-1/3" style={{ background: "var(--line-2)" }} />
+        <div className="w-6 h-6 rounded-full shrink-0" style={{ background: "var(--bg-3)" }} />
+        <div className="h-4 rounded w-1/3" style={{ background: "var(--bg-3)" }} />
       </div>
-      <div className="h-3 rounded w-2/3" style={{ background: "var(--line-2)" }} />
-      <div className="h-3 rounded w-full" style={{ background: "var(--line-2)" }} />
-      <div className="h-3 rounded w-5/6" style={{ background: "var(--line-2)" }} />
-      <div className="h-8 rounded w-1/3" style={{ background: "var(--line-2)" }} />
+      <div className="h-3 rounded w-2/3" style={{ background: "var(--bg-2)" }} />
+      <div className="h-3 rounded w-full" style={{ background: "var(--bg-2)" }} />
+      <div className="h-3 rounded w-5/6" style={{ background: "var(--bg-2)" }} />
+      <div className="h-8 rounded w-1/3" style={{ background: "var(--bg-3)" }} />
     </div>
   );
 }
@@ -172,13 +173,16 @@ function NeighborhoodCard({
             >
               {index + 1}
             </span>
-            <span className="text-base font-semibold" style={{ color: "var(--fg-1)" }}>
+            <span
+              className="text-base font-semibold"
+              style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+            >
               {nb.name}
             </span>
             {nb.safetyPenalty > 0 && (
               <span
                 className="text-xs rounded-full px-2 py-0.5 font-medium"
-                style={{ background: "var(--warning-bg, #fef3c7)", color: "var(--warning-fg, #92400e)" }}
+                style={{ background: "var(--status-warning-bg)", color: "var(--status-warning)" }}
               >
                 Near flagged area
               </span>
@@ -216,12 +220,16 @@ function NeighborhoodCard({
           <div className="flex flex-wrap gap-2 pt-1 text-xs" style={{ color: "var(--fg-3)" }}>
             <span
               className="rounded-full px-2 py-0.5 font-medium"
-              style={{ background: "var(--bg-2, var(--bg-1))", border: "1px solid var(--line-1)" }}
+              style={{ background: "var(--bg-2)", border: "1px solid var(--line-1)" }}
             >
               {scoreToLabel(nb.familyFriendlinessScore)}
             </span>
-            <span>{metersToMinutes(nb.walkingRadiusMeters)} activity radius</span>
-            {distanceKm !== null && <span>{distanceKm} km from your hotel</span>}
+            <span style={{ fontFamily: "var(--font-mono)" }}>
+              {metersToMinutes(nb.walkingRadiusMeters)} activity radius
+            </span>
+            {distanceKm !== null && (
+              <span style={{ fontFamily: "var(--font-mono)" }}>{distanceKm} km from your hotel</span>
+            )}
           </div>
 
           {/* Safety flag details — inline popover via <details> */}
@@ -455,18 +463,21 @@ export default function NeighborhoodsPage() {
         <div className="flex flex-wrap gap-2 mt-2">
           {trip?.hotelName && (
             <span
-              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
               style={{ background: "var(--bg-1)", color: "var(--fg-3)", border: "1px solid var(--line-1)" }}
             >
-              🏨 Staying at: {trip.hotelName}
+              <Building2 size={12} aria-hidden="true" />
+              Staying at: {trip.hotelName}
             </span>
           )}
           {trip && (
             <span
-              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs"
               style={{ background: "var(--bg-1)", color: "var(--fg-3)", border: "1px solid var(--line-1)" }}
             >
-              👨‍👩‍👧‍👦 {trip.familyProfile.adultCount} adult{trip.familyProfile.adultCount !== 1 ? "s" : ""}
+              <Users size={12} aria-hidden="true" />
+              <span style={{ fontFamily: "var(--font-mono)" }}>{trip.familyProfile.adultCount}</span>
+              &nbsp;adult{trip.familyProfile.adultCount !== 1 ? "s" : ""}
               {childrenAges ? ` · kids ${childrenAges}` : ""}
             </span>
           )}

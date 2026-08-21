@@ -157,9 +157,9 @@ function formatPlaceTypes(types: string[]): string | null {
 function PriceDots({ level }: { level: number | null }) {
   if (level === null) return null;
   return (
-    <span className="text-xs" style={{ color: "var(--fg-2)" }}>
+    <span className="text-xs" style={{ color: "var(--fg-2)", fontFamily: "var(--font-mono)" }}>
       {"$".repeat(level)}
-      <span style={{ color: "var(--fg-4, var(--fg-3))" }}>{"$".repeat(Math.max(0, 4 - level))}</span>
+      <span style={{ color: "var(--fg-4)" }}>{"$".repeat(Math.max(0, 4 - level))}</span>
     </span>
   );
 }
@@ -168,20 +168,20 @@ function PlaceCardSkeleton() {
   return (
     <div
       className="animate-pulse rounded-lg"
-      style={{ border: "1px solid var(--line-1)", background: "var(--bg-0)" }}
+      style={{ border: "1px solid var(--line-1)", background: "var(--bg-1)" }}
     >
       <div className="p-3 flex gap-3">
-        <div className="shrink-0 rounded-lg" style={{ width: "96px", height: "96px", background: "var(--line-2)" }} />
+        <div className="shrink-0 rounded-lg" style={{ width: "96px", height: "96px", background: "var(--bg-3)" }} />
         <div className="flex-1 space-y-2 py-0.5">
           <div className="flex justify-between gap-2">
-            <div className="h-4 rounded w-3/4" style={{ background: "var(--line-2)" }} />
-            <div className="h-5 w-12 rounded-full shrink-0" style={{ background: "var(--line-2)" }} />
+            <div className="h-4 rounded w-3/4" style={{ background: "var(--bg-3)" }} />
+            <div className="h-5 w-12 rounded-full shrink-0" style={{ background: "var(--bg-2)" }} />
           </div>
-          <div className="h-3 rounded w-full" style={{ background: "var(--line-2)" }} />
-          <div className="h-3 rounded w-2/3" style={{ background: "var(--line-2)" }} />
+          <div className="h-3 rounded w-full" style={{ background: "var(--bg-2)" }} />
+          <div className="h-3 rounded w-2/3" style={{ background: "var(--bg-2)" }} />
           <div className="flex gap-2 pt-1">
-            <div className="h-8 flex-1 rounded" style={{ background: "var(--line-2)" }} />
-            <div className="h-8 w-14 rounded" style={{ background: "var(--line-2)" }} />
+            <div className="h-8 flex-1 rounded" style={{ background: "var(--bg-3)" }} />
+            <div className="h-8 w-14 rounded" style={{ background: "var(--bg-3)" }} />
           </div>
         </div>
       </div>
@@ -206,8 +206,8 @@ function PlaceCard({
 }) {
   const categoryColor =
     place.category === "eat"
-      ? "var(--status-warning-bg, #fef3c7)"
-      : "var(--status-info-bg, #dbeafe)";
+      ? "var(--status-warning-bg)"
+      : "var(--status-info-bg)";
 
   const signal = corroborationToSignal(place.corroborationScore);
 
@@ -274,7 +274,10 @@ function PlaceCard({
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col gap-1">
             <div className="flex items-start gap-2">
-              <h3 className="text-sm font-semibold flex-1 min-w-0 leading-snug" style={{ color: "var(--fg-1)" }}>
+              <h3
+                className="text-sm font-semibold flex-1 min-w-0 leading-snug"
+                style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+              >
                 {place.name}
               </h3>
               <Badge variant={place.category === "eat" ? "warning" : "info"} className="shrink-0">
@@ -295,7 +298,7 @@ function PlaceCard({
             {/* Compact metadata row: rating · price · distance */}
             <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs" style={{ color: "var(--fg-2)" }}>
               {place.rating !== null && (
-                <span className="flex items-center gap-0.5">
+                <span className="flex items-center gap-0.5" style={{ fontFamily: "var(--font-mono)" }}>
                   <span className="text-yellow-500">★</span>
                   {place.rating.toFixed(1)}
                   {place.reviewCount !== null && (
@@ -307,7 +310,7 @@ function PlaceCard({
                 <><span style={{ color: "var(--line-2)" }}>·</span><PriceDots level={place.priceLevel} /></>
               )}
               <span style={{ color: "var(--line-2)" }}>·</span>
-              <span style={{ color: "var(--fg-3)" }}>{distanceLabel}</span>
+              <span style={{ color: "var(--fg-3)", fontFamily: "var(--font-mono)" }}>{distanceLabel}</span>
             </div>
 
             {/* Signal pills */}
@@ -583,7 +586,7 @@ export default function DiscoveryPage() {
         // the branch below) as soon as any "place" SSE events resolve.
         // aria-live="polite" announces each new arrival to screen readers.
         <div className="discovery-layout" aria-live="polite">
-          <div className="discovery-map-col animate-pulse" style={{ background: "var(--line-2)" }} />
+          <div className="discovery-map-col animate-pulse" style={{ background: "var(--bg-3)" }} />
           <div className="discovery-card-col space-y-4">
             <ResearchHighlight text="Finding great spots for your family nearby…" label="While we search…" />
             {[1, 2, 3, 4].map((n) => <PlaceCardSkeleton key={n} />)}
@@ -652,7 +655,7 @@ export default function DiscoveryPage() {
                         border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
                       }}
                     >
-                      {pill.label} ({count})
+                      {pill.label} (<span style={{ fontFamily: "var(--font-mono)" }}>{count}</span>)
                     </button>
                   );
                 })}
@@ -755,8 +758,8 @@ export default function DiscoveryPage() {
             bottom: "64px",
             left: 0,
             right: 0,
-            background: "var(--accent, #2d9b6f)",
-            color: "var(--fg-on-malachite, #fff)",
+            background: "var(--accent)",
+            color: "var(--fg-on-malachite)",
             padding: "12px 16px",
             display: "flex",
             justifyContent: "space-between",
@@ -766,7 +769,8 @@ export default function DiscoveryPage() {
           }}
         >
           <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-            {addedCount} {addedCount === 1 ? "place" : "places"} added
+            <span style={{ fontFamily: "var(--font-mono)" }}>{addedCount}</span>{" "}
+            {addedCount === 1 ? "place" : "places"} added
           </span>
           <button
             onClick={() => router.push(`/trip/${tripId}/itinerary`)}
