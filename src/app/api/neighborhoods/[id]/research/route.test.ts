@@ -330,22 +330,25 @@ describe("GET /api/neighborhoods/[id]/research", () => {
     expect(placesB2).toHaveLength(1);
   });
 
-  it("rate limit: requests beyond the per-IP threshold are rejected with 429", async () => {
+  // Code review fix (2026-08-21, api-contract/adversarial P1): mirrors the
+  // identical fix in the sibling destinations/[id]/research route — see
+  // that file's rate-limit test for the full rationale. Pre-flight
+  // rejections are SSE-framed now instead of plain JSON with a 4xx status.
+  it("rate limit: requests beyond the threshold receive an SSE-framed error event, not a 429", async () => {
     const dest = seedDestination(db);
     const neighborhood = seedNeighborhood(db, dest.id, "Gion");
 
     global.fetch = vi.fn().mockResolvedValue(makeTextSearchResponse([]));
 
     const ip = "198.51.100.30";
-    let lastStatus = 200;
+    let lastEvents: SSEEvent[] = [];
     for (let i = 0; i < 15; i++) {
       const res = await makeResearchRequest(neighborhood.id, ip);
-      if (res.status === 200) {
-        await createSSEReader(res).readAll();
-      }
-      lastStatus = res.status;
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+      lastEvents = await createSSEReader(res).readAll();
     }
 
-    expect(lastStatus).toBe(429);
+    expect(lastEvents[lastEvents.length - 1]!.event).toBe("error");
   });
 });

@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { destinations, neighborhoods, type Destination, type Neighborhood } from "@/db/schema";
 import {
@@ -15,6 +14,8 @@ import {
   discoverNeighborhoods,
   type NeighborhoodCandidate,
 } from "@/services/neighborhoods/discover";
+import { createRateLimiter } from "@/lib/rateLimit";
+import { sseEncode, sseErrorResponse } from "@/lib/sse";
 
 // U5 (plan 2026-08-20-011): SSE endpoint that runs (or joins) a
 // destination's neighborhood-discovery research pass and streams results as
@@ -22,42 +23,14 @@ import {
 
 type Db = ReturnType<typeof getDb>;
 
-// --- Per-IP rate limiting -----------------------------------------------
-// Mirrors src/app/api/destinations/route.ts's POST rate limiter exactly
-// (same simple in-memory fixed-window counter, same rationale: this route
-// is unauthenticated, GET-only because EventSource requires it, and can
-// trigger real external API cost via the research pass it (re)joins). Kept
-// as its own module-local counter rather than extracted into a shared
-// helper — no shared rate-limit module exists yet in this codebase, and the
-// plan's file list for this unit doesn't add one; duplicating the same
-// simple pattern is "reuse the approach," not "reinvent a new one."
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 10;
-
-const rateLimitState = new Map<string, { count: number; windowStart: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitState.get(ip);
-  if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    rateLimitState.set(ip, { count: 1, windowStart: now });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > RATE_LIMIT_MAX_REQUESTS;
-}
+// --- Rate limiting -----------------------------------------------------
+// See src/lib/rateLimit.ts for why this buckets on a single shared key
+// rather than a per-IP one.
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
 
 // Test-only escape hatch, mirroring src/app/api/destinations/route.ts.
 export function _resetRateLimitForTesting(): void {
-  rateLimitState.clear();
-}
-
-function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]!.trim();
-  }
-  return "unknown";
+  rateLimiter.reset();
 }
 
 // --- SSE event shapes -----------------------------------------------------
@@ -112,11 +85,86 @@ function persistNeighborhood(
   return rows[0];
 }
 
+function markWgSynced(db: Db, destinationId: number): void {
+  db.update(destinations).set({ wgSyncedAt: new Date() }).where(eq(destinations.id, destinationId)).run();
+}
+
+// Guards against firing syncCity twice concurrently for the same
+// destination. The live-research path is already deduped by
+// orchestrator.startOrJoin, but the cached-path call to ensureWgSynced
+// below runs outside that registry — two near-simultaneous requests for the
+// same never-synced destination would each read a `wgSyncedAt: null`
+// snapshot before either write lands, and without this guard both would
+// fire the real CLI call. Checked-and-set synchronously (no await between
+// the check and the add), mirroring the same idiom this codebase already
+// uses for exactly this kind of single-process de-duplication (this WG
+// client's own `_available` cache, orchestrator.ts's run registry).
+const wgSyncInFlight = new Set<number>();
+
+// Test-only escape hatch, mirroring this file's own _resetRateLimitForTesting
+// and orchestrator.ts's _resetRegistryForTesting. Needed in tests because a
+// deliberately never-resolving syncCity mock (used to prove the cached path
+// doesn't block on it) would otherwise leave an entry here forever, and each
+// test's in-memory SQLite DB restarts autoincrement IDs from 1 — leaking a
+// stale entry into an unrelated later test's same-numbered destination.
+export function _resetWgSyncInFlightForTesting(): void {
+  wgSyncInFlight.clear();
+}
+
+// Hydrates WG's local per-city data store the first time (ever) a
+// destination needs it, gated on wgSyncedAt rather than researchStatus.
+//
+// Code review finding (2026-08-21): the original gate was
+// `researchStatus === "not_started"`, but migration 0005's backfill marks
+// every pre-existing seeded destination (Tokyo) "complete" directly —
+// meaning that gate would never fire for Tokyo again, permanently skipping
+// syncCity for it under this architecture (KTD-J calls WG corroboration
+// load-bearing). wgSyncedAt is independent of researchStatus and stays
+// null until this function actually succeeds, so a backfilled destination
+// still gets synced on its very next visit — whether that visit takes the
+// live-research path below or the cached fast path in GET.
+//
+// Deliberately NOT awaited by either caller (fire-and-forget): neither the
+// live-research neighborhood-discovery loop nor the cached-path response
+// consumes WG data (only U6's per-neighborhood place-research does, later,
+// well after this resolves in practice), so blocking either of them on
+// this function's 2-5 minute real-world duration would only add latency
+// with no correctness benefit — and on the cached path specifically it
+// would silently break R7/R9's "renders immediately, no wait state"
+// contract for the one-time case of a backfilled-but-never-synced
+// destination. This process is a long-lived `next start` container (not
+// serverless), so the promise keeps running after the caller stops
+// awaiting it; its own try/catch below never lets a failure escape as an
+// unhandled rejection.
+async function ensureWgSynced(db: Db, destination: Destination): Promise<void> {
+  if (destination.wgSyncedAt !== null) return;
+  if (wgSyncInFlight.has(destination.id)) return;
+  wgSyncInFlight.add(destination.id);
+  try {
+    await syncCity(destination.name, destination.country);
+    markWgSynced(db, destination.id);
+  } catch (err) {
+    // sync-city failure degrades WG corroboration quality for this
+    // destination (KTD-J) but doesn't block neighborhood discovery, which
+    // doesn't depend on WG in this unit at all — logged, not fatal, per
+    // this codebase's existing "WG unavailable → degrade gracefully"
+    // convention (src/app/api/discovery/route.ts's wgInstalled handling).
+    // Left unset so the next visit retries rather than being marked synced
+    // on a failed attempt.
+    console.warn(
+      `[Research] sync-city failed for ${destination.name}, ${destination.country}:`,
+      err instanceof Error ? err.message : err
+    );
+  } finally {
+    wgSyncInFlight.delete(destination.id);
+  }
+}
+
 // The run function passed to orchestrator.startOrJoin. Only the winning
 // caller's closure for a given key ever actually executes this (see
 // orchestrator.ts's startOrJoin) — joiners subscribe to its output instead,
-// so syncCity/markInProgress below only ever run once per research run,
-// even under a concurrent-join race.
+// so ensureWgSynced/markInProgress below only ever run once per research
+// run, even under a concurrent-join race.
 //
 // Error handling mirrors the exact convention orchestrator.test.ts already
 // establishes for runFns: on failure, call markPartial and RETHROW (don't
@@ -127,37 +175,23 @@ function persistNeighborhood(
 // rethrown error into a terminal "partial" SSE event instead of an
 // unhandled rejection.
 async function* runResearch(db: Db, destination: Destination): AsyncGenerator<ResearchStreamEvent> {
-  // Only "not_started" triggers syncCity — a stale-but-complete or partial
-  // destination has already been synced once; re-syncing it would repay the
-  // 2-5 minute cost for no benefit (plan Approach step 2/6).
-  const isFirstResearch = destination.researchStatus === "not_started";
-
   markInProgress(db, { kind: "destination", id: destination.id });
 
-  if (isFirstResearch) {
-    try {
-      await syncCity(destination.name, destination.country);
-    } catch (err) {
-      // sync-city failure degrades WG corroboration quality for this
-      // destination (KTD-J) but doesn't block neighborhood discovery, which
-      // doesn't depend on WG in this unit at all — logged, not fatal, per
-      // this codebase's existing "WG unavailable → degrade gracefully"
-      // convention (src/app/api/discovery/route.ts's wgInstalled handling).
-      console.warn(
-        `[Research] sync-city failed for ${destination.name}, ${destination.country}:`,
-        err instanceof Error ? err.message : err
-      );
-    }
-  }
-
-  // Highlight-first: emitted before any neighborhood event, per this plan's
-  // Key Technical Decision ("emitted first ... so it's available for the
-  // entire wait, not just whatever's left of it").
+  // Highlight-first: emitted before syncCity and before any neighborhood
+  // event, per this plan's Key Technical Decision ("emitted first ... so
+  // it's available for the entire wait, not just whatever's left of it").
+  // Code review finding (2026-08-21): this used to run AFTER syncCity's
+  // 2-5 minute await, leaving the stream silent for the entire wait instead
+  // of available for it.
   yield {
     type: "highlight",
     destinationId: destination.id,
     text: generateDestinationHighlight(destination),
   };
+
+  // Not awaited — see ensureWgSynced's comment. Runs concurrently with the
+  // discovery loop below rather than blocking it.
+  void ensureWgSynced(db, destination);
 
   try {
     for await (const candidate of discoverNeighborhoods(destination)) {
@@ -174,38 +208,33 @@ async function* runResearch(db: Db, destination: Destination): AsyncGenerator<Re
   markComplete(db, { kind: "destination", id: destination.id });
 }
 
-function sseEncode(encoder: TextEncoder, event: string, data: unknown): Uint8Array {
-  return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ip = getClientIp(request);
-  if (isRateLimited(ip)) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  if (rateLimiter.isRateLimited()) {
+    return sseErrorResponse("Too many requests. Please wait a moment and try again.");
   }
 
   const { id: idStr } = await params;
   const id = Number(idStr);
   if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "Invalid destination id" }, { status: 400 });
+    return sseErrorResponse("Invalid destination id");
   }
 
   const db = getDb();
   const destination = db.select().from(destinations).where(eq(destinations.id, id)).all()[0];
   if (!destination) {
-    return NextResponse.json({ error: "Destination not found" }, { status: 404 });
+    return sseErrorResponse("Destination not found");
   }
 
   // U7 (plan 2026-08-20-011): manual re-research trigger support. `force`
   // bypasses the cached/fresh fast-path below so a `complete`, non-stale
-  // destination re-enters research as if not_started — but does NOT
-  // re-trigger syncCity, since runResearch's own isFirstResearch check
-  // (destination.researchStatus === "not_started") is untouched by this
-  // flag and this destination's status is still "complete" here, not
-  // "not_started". Only neighborhood discovery re-runs.
+  // destination re-enters research through runResearch as if not_started.
+  // It does not force a re-sync of WG data: ensureWgSynced (called from
+  // runResearch) is gated on destination.wgSyncedAt, not researchStatus or
+  // this flag, so an already-synced destination correctly skips syncCity
+  // on a forced re-run — only neighborhood discovery re-runs.
   const force = new URL(request.url).searchParams.get("force") === "true";
 
   const encoder = new TextEncoder();
@@ -218,6 +247,13 @@ export async function GET(
         // events for a consistent client contract, but with no research run
         // and no wait state.
         if (!force && destination.researchStatus === "complete" && !isStale(destination.researchedAt)) {
+          // A destination backfilled straight to "complete" (migration
+          // 0005, e.g. Tokyo) never had a live research run and so was
+          // never wgSynced either — ensureWgSynced closes that gap on the
+          // fast path too, not just the live-research path below. Not
+          // awaited: this branch's whole contract (R7/R9) is "renders
+          // immediately, no wait state" — see ensureWgSynced's comment.
+          void ensureWgSynced(db, destination);
           const existing = db
             .select()
             .from(neighborhoods)
@@ -234,9 +270,9 @@ export async function GET(
         // Otherwise: not_started, in_progress, partial, or stale-complete —
         // all treated as "run (or join) research" per the state machine in
         // this plan's High-Level Technical Design. Stale-complete is
-        // deliberately routed through the same path as not_started EXCEPT
-        // for syncCity, which runResearch's own isFirstResearch check
-        // already gates on researchStatus === "not_started" specifically.
+        // routed through the same path as not_started; ensureWgSynced's own
+        // wgSyncedAt gate (not this branch) is what keeps an
+        // already-synced destination from re-syncing WG on a stale re-run.
         const runKey = `destination:${destination.id}`;
         const events = startOrJoin(runKey, () => runResearch(db, destination));
 

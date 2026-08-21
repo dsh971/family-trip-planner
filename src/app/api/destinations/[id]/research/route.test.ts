@@ -194,8 +194,9 @@ describe("GET /api/destinations/[id]/research", () => {
     const { getDb } = await import("@/db/client");
     vi.mocked(getDb).mockReturnValue(db as ReturnType<typeof import("@/db/client").getDb>);
 
-    const { _resetRateLimitForTesting } = await import("./route");
+    const { _resetRateLimitForTesting, _resetWgSyncInFlightForTesting } = await import("./route");
     _resetRateLimitForTesting();
+    _resetWgSyncInFlightForTesting();
     _resetRegistryForTesting();
 
     const { syncCity } = await import("@/services/wanderlust-goat/client");
@@ -248,8 +249,12 @@ describe("GET /api/destinations/[id]/research", () => {
     expect(syncCity).toHaveBeenCalledWith("Lisbon", "Portugal");
   });
 
-  it("does not re-trigger syncCity for a destination already past not_started", async () => {
-    const dest = seedDestination(db, { researchStatus: "partial", researchedAt: new Date() });
+  it("does not re-trigger syncCity for a destination already wgSynced", async () => {
+    const dest = seedDestination(db, {
+      researchStatus: "partial",
+      researchedAt: new Date(),
+      wgSyncedAt: new Date(),
+    });
     const { discoverNeighborhoods } = await import("@/services/neighborhoods/discover");
     vi.mocked(discoverNeighborhoods).mockImplementation(async function* () {
       yield candidate("Alfama");
@@ -308,7 +313,11 @@ describe("GET /api/destinations/[id]/research", () => {
   });
 
   it("cached/fresh: complete and not stale returns immediately with no research run", async () => {
-    const dest = seedDestination(db, { researchStatus: "complete", researchedAt: new Date() });
+    const dest = seedDestination(db, {
+      researchStatus: "complete",
+      researchedAt: new Date(),
+      wgSyncedAt: new Date(),
+    });
     seedNeighborhood(db, dest.id, "Alfama");
     seedNeighborhood(db, dest.id, "Belém");
 
@@ -326,9 +335,117 @@ describe("GET /api/destinations/[id]/research", () => {
     expect(discoverNeighborhoods).not.toHaveBeenCalled();
   });
 
+  // Code review fix (2026-08-21, correctness P1): migration 0005 backfills
+  // pre-existing seeded destinations (Tokyo) straight to researchStatus
+  // "complete" with no live research run ever having happened — meaning
+  // wgSyncedAt is still null for them. The cached fast path must still sync
+  // WG once in that case, even though it never runs the live research
+  // generator.
+  it("cached/fresh path syncs WG once for a backfilled destination that was never wgSynced, without blocking the response", async () => {
+    const dest = seedDestination(db, {
+      researchStatus: "complete",
+      researchedAt: new Date(),
+      wgSyncedAt: null,
+    });
+    seedNeighborhood(db, dest.id, "Alfama");
+
+    // ensureWgSynced is fire-and-forget on this path (not awaited) so the
+    // cached response still resolves immediately per R7/R9 — a controllable
+    // syncCity mock that never resolves on its own proves the stream
+    // completed without waiting for it.
+    const { syncCity } = await import("@/services/wanderlust-goat/client");
+    vi.mocked(syncCity).mockImplementation(() => new Promise<void>(() => {}));
+
+    const res = await makeResearchRequest(dest.id);
+    const events = await createSSEReader(res).readAll();
+
+    expect(events.some((e) => e.event === "neighborhood")).toBe(true);
+    expect(events[events.length - 1]!.event).toBe("done");
+
+    const { discoverNeighborhoods } = await import("@/services/neighborhoods/discover");
+    expect(syncCity).toHaveBeenCalledTimes(1);
+    expect(syncCity).toHaveBeenCalledWith("Lisbon", "Portugal");
+    // Only the sync was kicked off — no live discovery re-run against the
+    // already-cached neighborhoods.
+    expect(discoverNeighborhoods).not.toHaveBeenCalled();
+  });
+
+  // Self-review follow-up to the fix above: since the cached path's
+  // ensureWgSynced call is fire-and-forget (not routed through
+  // orchestrator.startOrJoin), two near-simultaneous requests for the same
+  // never-synced destination could each read a wgSyncedAt: null snapshot
+  // before either write lands, and without the wgSyncInFlight guard both
+  // would fire syncCity.
+  it("de-dupes concurrent cached-path syncCity calls for the same never-synced destination", async () => {
+    const dest = seedDestination(db, {
+      researchStatus: "complete",
+      researchedAt: new Date(),
+      wgSyncedAt: null,
+    });
+    seedNeighborhood(db, dest.id, "Alfama");
+
+    const { syncCity } = await import("@/services/wanderlust-goat/client");
+    let releaseSyncCity: () => void = () => {};
+    vi.mocked(syncCity).mockImplementation(
+      () => new Promise<void>((resolve) => { releaseSyncCity = resolve; })
+    );
+
+    const [resA, resB] = await Promise.all([
+      makeResearchRequest(dest.id, "203.0.113.30"),
+      makeResearchRequest(dest.id, "203.0.113.31"),
+    ]);
+
+    await Promise.all([
+      createSSEReader(resA).readAll(),
+      createSSEReader(resB).readAll(),
+    ]);
+
+    expect(syncCity).toHaveBeenCalledTimes(1);
+    releaseSyncCity();
+  });
+
+  // Code review fix (2026-08-21, performance P1): syncCity used to be
+  // awaited BEFORE the highlight event was yielded, leaving the stream
+  // silent for syncCity's full 2-5 minute real-world duration instead of
+  // "available for the entire wait."
+  it("emits the highlight event before syncCity resolves (highlight-first)", async () => {
+    const dest = seedDestination(db, { researchStatus: "not_started" });
+    const { discoverNeighborhoods } = await import("@/services/neighborhoods/discover");
+    vi.mocked(discoverNeighborhoods).mockImplementation(async function* () {
+      yield candidate("Alfama");
+    });
+
+    const { syncCity } = await import("@/services/wanderlust-goat/client");
+    let releaseSyncCity: () => void = () => {};
+    vi.mocked(syncCity).mockImplementation(
+      () => new Promise<void>((resolve) => { releaseSyncCity = resolve; })
+    );
+
+    const res = await makeResearchRequest(dest.id);
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+
+    let buffer = "";
+    let sawHighlight = false;
+    while (!sawHighlight) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      if (buffer.includes("event: highlight")) sawHighlight = true;
+    }
+
+    expect(sawHighlight).toBe(true);
+    releaseSyncCity();
+    await reader.cancel();
+  });
+
   it("stale: complete but researchedAt older than 90 days triggers a fresh run without re-triggering syncCity", async () => {
     const staleDate = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
-    const dest = seedDestination(db, { researchStatus: "complete", researchedAt: staleDate });
+    const dest = seedDestination(db, {
+      researchStatus: "complete",
+      researchedAt: staleDate,
+      wgSyncedAt: new Date(staleDate),
+    });
     seedNeighborhood(db, dest.id, "OldNeighborhood");
 
     const { discoverNeighborhoods } = await import("@/services/neighborhoods/discover");
@@ -395,7 +512,15 @@ describe("GET /api/destinations/[id]/research", () => {
     expect(destRow.researchStatus).toBe("complete");
   });
 
-  it("rate limit: requests beyond the per-IP threshold are rejected with 429", async () => {
+  // Code review fix (2026-08-21, api-contract/adversarial P1): pre-flight
+  // rejections (rate limit, invalid id, not found) used to return plain
+  // NextResponse.json(..., {status}) — EventSource can only surface that as
+  // a generic connection-level failure with no `.data`, indistinguishable
+  // from a real network drop, so useResearchStream burned its reconnect
+  // budget instead of showing the real cause. They're SSE-framed now: the
+  // HTTP transport always succeeds (200, text/event-stream) and the real
+  // status lives in a named "error" event's payload.
+  it("rate limit: requests beyond the threshold receive an SSE-framed error event, not a 429", async () => {
     const dest = seedDestination(db);
     const { discoverNeighborhoods } = await import("@/services/neighborhoods/discover");
     vi.mocked(discoverNeighborhoods).mockImplementation(async function* () {
@@ -403,20 +528,17 @@ describe("GET /api/destinations/[id]/research", () => {
     });
 
     const ip = "198.51.100.20";
-    let lastStatus = 200;
+    let lastEvents: SSEEvent[] = [];
     for (let i = 0; i < 15; i++) {
       // Each request targets a fresh destination-less path isn't needed —
       // rate limiting is checked before the DB lookup, so repeated calls
       // against the same id are sufficient to exercise it.
       const res = await makeResearchRequest(dest.id, ip);
-      if (res.status !== 200) {
-        // Drain nothing — non-200 responses are plain JSON, not a stream.
-      } else {
-        await createSSEReader(res).readAll();
-      }
-      lastStatus = res.status;
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Content-Type")).toBe("text/event-stream");
+      lastEvents = await createSSEReader(res).readAll();
     }
 
-    expect(lastStatus).toBe(429);
+    expect(lastEvents[lastEvents.length - 1]!.event).toBe("error");
   });
 });

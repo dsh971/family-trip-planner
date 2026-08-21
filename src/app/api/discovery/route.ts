@@ -71,20 +71,33 @@ export async function POST(request: Request) {
   }
 
   // Cache-aware fast path (plan 2026-08-20-011 U7): a neighborhood already
-  // fully researched via the U6 SSE route (complete, not stale) is read
-  // straight from the DB instead of re-running the full Google Places +
-  // Wanderlust-Goat pass again here — mirrors the exact cached-path pattern
-  // src/app/api/neighborhoods/[id]/research/route.ts already uses. Without
-  // this, every visit to the Discovery page would re-pay the external API
-  // cost the SSE research run already just paid, even though the U6 route
-  // marked this neighborhood complete moments earlier. Only not_started,
-  // in_progress, partial, or stale-complete neighborhoods still take the
-  // live research path below.
+  // researched via the U6 SSE route (complete OR partial, not stale) is
+  // read straight from the DB instead of re-running the full Google Places
+  // + Wanderlust-Goat pass again here — mirrors the exact cached-path
+  // pattern src/app/api/neighborhoods/[id]/research/route.ts already uses.
+  // Without this, every visit to the Discovery page would re-pay the
+  // external API cost the SSE research run already just paid, even though
+  // the U6 route just persisted this neighborhood's places.
+  //
+  // Code review finding (2026-08-21): this originally checked only
+  // "complete", excluding "partial" — but the Discovery page always calls
+  // this route once the SSE stream settles to either terminal status
+  // (src/app/trip/[tripId]/discovery/page.tsx), and this branch never calls
+  // markComplete/markPartial itself, so a partial run's neighborhood stayed
+  // "partial" forever and re-paid full external API cost on every single
+  // visit. "Partial" already means "whatever resolved was persisted" (see
+  // the SSE route's runResearch), so reading it back here is exactly as
+  // safe as the "complete" case — just a shorter list. Only not_started,
+  // in_progress, or stale neighborhoods still take the live research path
+  // below.
   let candidates: DiscoveryCandidate[];
   let openingHoursMap: Map<string, Array<{ startTime: string }>>;
   let wgDiscoverSucceeded: boolean;
 
-  if (neighborhood.researchStatus === "complete" && !isStale(neighborhood.researchedAt)) {
+  if (
+    (neighborhood.researchStatus === "complete" || neighborhood.researchStatus === "partial") &&
+    !isStale(neighborhood.researchedAt)
+  ) {
     const existing = db.select().from(places).where(eq(places.neighborhoodId, neighborhood.id)).all();
     candidates = finalizeDistances(existing.map(placeRowToCandidateBase), neighborhood);
     openingHoursMap = new Map(

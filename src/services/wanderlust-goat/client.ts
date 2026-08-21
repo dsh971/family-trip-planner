@@ -37,11 +37,35 @@ export function _resetAvailabilityForTesting(): void {
   _available = null;
 }
 
+// Code review finding (2026-08-21, reliability): execFileAsync previously
+// had no timeout. That was a low-risk gap when sync-city only ran once at
+// container startup, but syncCity() is now awaited inside a live SSE
+// request (src/app/api/destinations/[id]/research/route.ts), and
+// discoverGoat() is awaited inside neighborhood-level research
+// (src/services/discovery/research.ts) — both driven through
+// orchestrator.ts's startOrJoin, whose registry entry is only cleared in a
+// `finally` after the run's generator loop completes. A hung child process
+// means that generator never completes, permanently leaking the registry
+// entry for that destination/neighborhood (every future request for the
+// same key joins the same dead run forever). A timeout turns a hang into a
+// rejection, which flows through the existing markPartial-then-rethrow path
+// and lets that `finally` run.
+//
+// One shared constant across all four commands rather than a tighter
+// per-command budget: syncCity's own docstring above documents "2-5 minutes
+// in production" as its normal duration, so the timeout has to clear that
+// with real margin or it starts false-positive-killing legitimate slow
+// syncs — the goal here is bounding a genuine hang, not tuning an SLA.
+const COMMAND_TIMEOUT_MS = 10 * 60_000;
+
 async function runCommand(args: string[]): Promise<string> {
   const available = await isAvailable();
   if (!available) throw new WGUnavailableError();
 
-  const { stdout, stderr } = await execFileAsync(WG_BINARY, args).catch((err: Error & { code?: number; stderr?: string }) => {
+  const { stdout, stderr } = await execFileAsync(WG_BINARY, args, { timeout: COMMAND_TIMEOUT_MS }).catch((err: Error & { code?: number; stderr?: string; killed?: boolean }) => {
+    if (err.killed) {
+      throw new WGCommandError(args[0] ?? "unknown", 124, `Timed out after ${COMMAND_TIMEOUT_MS}ms`);
+    }
     const exitCode = err.code ?? 1;
     const errMsg = err.stderr ?? err.message;
     throw new WGCommandError(args[0] ?? "unknown", exitCode, errMsg);

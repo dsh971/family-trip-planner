@@ -256,4 +256,28 @@ describe("U5: Wanderlust GOAT client", () => {
       expect(execMock).toHaveBeenCalledTimes(2);
     });
   });
+
+  // Code review fix (2026-08-21, reliability P1): execFileAsync previously
+  // had no timeout, so a hang (syncCity is now awaited inside a live SSE
+  // request) would leak the orchestrator's run registry entry forever. See
+  // runCommand's COMMAND_TIMEOUT_MS comment for the full rationale.
+  describe("command timeout", () => {
+    it("passes a timeout option to execFileAsync", async () => {
+      execMock.mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+      const { syncCity } = await import("./client");
+      await syncCity("Paris", "France");
+
+      const options = execMock.mock.calls[0]![2] as { timeout?: number };
+      expect(options?.timeout).toBeGreaterThan(0);
+    });
+
+    it("surfaces a timed-out call as a WGCommandError rather than hanging", async () => {
+      const err = Object.assign(new Error("killed"), { killed: true, signal: "SIGTERM" });
+      execMock.mockRejectedValueOnce(err);
+
+      const { syncCity } = await import("./client");
+      await expect(syncCity("Paris", "France")).rejects.toThrow(WGCommandError);
+    });
+  });
 });

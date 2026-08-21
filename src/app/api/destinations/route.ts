@@ -3,6 +3,7 @@ import { like } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { destinations } from "@/db/schema";
 import { findOrCreateDestination, InvalidDestinationNameError } from "@/services/destinations/lookup";
+import { createRateLimiter } from "@/lib/rateLimit";
 
 // U3 (plan 2026-08-20-011): search-as-you-type + lookup-or-create for
 // destinations, replacing the free-text-only stopgap that U2 wired directly
@@ -37,47 +38,23 @@ export async function GET(request: Request) {
   return NextResponse.json(matches);
 }
 
-// --- Per-IP rate limiting for POST -----------------------------------------
+// --- Rate limiting for POST -------------------------------------------------
 // POST is unauthenticated and can trigger real external API cost via the
-// (not-yet-built) research pipeline once U5/U6 land, so it gets a simple
-// fixed-window per-IP counter — no new dependency, kept local to this file
-// per the plan's guidance (no shared rate-limit infra exists yet).
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 10;
-
-const rateLimitState = new Map<string, { count: number; windowStart: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitState.get(ip);
-  if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    rateLimitState.set(ip, { count: 1, windowStart: now });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > RATE_LIMIT_MAX_REQUESTS;
-}
+// research pipeline (U5/U6). See src/lib/rateLimit.ts for why this buckets
+// on a single shared key rather than a per-IP one.
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
 
 // Test-only escape hatch, mirroring src/services/wanderlust-goat/client.ts's
 // _resetAvailabilityForTesting() pattern for module-level state.
 export function _resetRateLimitForTesting(): void {
-  rateLimitState.clear();
-}
-
-function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]!.trim();
-  }
-  return "unknown";
+  rateLimiter.reset();
 }
 
 // POST /api/destinations — lookup-or-create by (normalized) name. Reuses
 // U1's findOrCreateDestination for the actual normalize-and-slug logic;
 // this route only adds the HTTP/rate-limit shell around it.
 export async function POST(request: Request) {
-  const ip = getClientIp(request);
-  if (isRateLimited(ip)) {
+  if (rateLimiter.isRateLimited()) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 

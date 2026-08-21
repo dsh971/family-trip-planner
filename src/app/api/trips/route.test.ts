@@ -59,6 +59,8 @@ describe("POST /api/trips", () => {
     db = createDb();
     const { getDb } = await import("@/db/client");
     vi.mocked(getDb).mockReturnValue(db as ReturnType<typeof import("@/db/client").getDb>);
+    const { _resetDestinationCreationRateLimitForTesting } = await import("./route");
+    _resetDestinationCreationRateLimitForTesting();
   });
 
   // U2 (plan 2026-08-20-011): profile no longer sends a hardcoded destinationId: 1.
@@ -160,5 +162,56 @@ describe("POST /api/trips", () => {
     expect(res.status).toBe(201);
     const json = await res.json() as { destinationId: number };
     expect(json.destinationId).toBe(dest.id);
+  });
+
+  // Code review fix (2026-08-21, security P0): this route's destinationName
+  // branch called the same findOrCreateDestination() that
+  // src/app/api/destinations/route.ts's POST rate-limits, but had no rate
+  // limiting of its own — a minimal { familyProfileId, destinationName }
+  // payload here routed around that limiter entirely.
+  it("rejects destination-creation requests beyond the rate limit with a 429", async () => {
+    const profile = seedProfile(db);
+
+    let lastStatus = 200;
+    for (let i = 0; i < 15; i++) {
+      const res = await makeRequest({
+        familyProfileId: profile.id,
+        destinationName: `City ${i}`,
+        startDate: "2026-09-01",
+        endDate: "2026-09-07",
+      });
+      lastStatus = res.status;
+    }
+
+    expect(lastStatus).toBe(429);
+  });
+
+  it("does not rate limit the numeric-destinationId path", async () => {
+    const profile = seedProfile(db);
+    const dest = db
+      .insert(schema.destinations)
+      .values({
+        slug: "rate-limit-bypass-check",
+        name: "Rate Limit Bypass Check",
+        country: "Testland",
+        defaultWalkingRadiusMeters: 1200,
+        localeValidators: [],
+        safetyDataSource: "",
+      })
+      .returning()
+      .all()[0]!;
+
+    let lastStatus = 200;
+    for (let i = 0; i < 15; i++) {
+      const res = await makeRequest({
+        familyProfileId: profile.id,
+        destinationId: dest.id,
+        startDate: "2026-09-01",
+        endDate: "2026-09-07",
+      });
+      lastStatus = res.status;
+    }
+
+    expect(lastStatus).toBe(201);
   });
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `destinations` ADD `wg_synced_at` integer;

@@ -46,6 +46,16 @@ export const destinations = sqliteTable("destinations", {
   // This column gives a future calendar-export unit somewhere to read that
   // from; it does not itself change how times are computed or displayed.
   timezone: text("timezone"),
+  // Timestamp when Wanderlust-Goat's local per-city data store was last
+  // hydrated via syncCity() for this destination (code review finding,
+  // 2026-08-21: the 0005 backfill marks pre-existing destinations'
+  // researchStatus "complete" without ever syncing WG for them, since
+  // isFirstResearch previously gated syncCity on researchStatus ===
+  // "not_started" — permanently skipping it for backfilled rows). Nullable;
+  // set once syncCity succeeds and never reset. Independent of
+  // researchStatus, which tracks neighborhood-discovery progress, not WG
+  // hydration.
+  wgSyncedAt: integer("wg_synced_at", { mode: "timestamp" }),
 });
 
 // ---------------------------------------------------------------------------

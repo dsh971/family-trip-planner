@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { destinations, neighborhoods, places, type Destination, type Neighborhood } from "@/db/schema";
 import {
@@ -16,6 +15,8 @@ import {
   finalizeDistances,
 } from "@/services/discovery/research";
 import type { DiscoveryCandidate } from "@/services/discovery/filters";
+import { createRateLimiter } from "@/lib/rateLimit";
+import { sseEncode, sseErrorResponse } from "@/lib/sse";
 
 // U6 (plan 2026-08-20-011): SSE endpoint that runs (or joins) a
 // neighborhood's place-research pass and streams results as they resolve —
@@ -27,40 +28,14 @@ import type { DiscoveryCandidate } from "@/services/discovery/filters";
 
 type Db = ReturnType<typeof getDb>;
 
-// --- Per-IP rate limiting -----------------------------------------------
-// Mirrors src/app/api/destinations/[id]/research/route.ts's GET rate
-// limiter exactly (same simple in-memory fixed-window counter, same
-// rationale: unauthenticated, GET-only because EventSource requires it, and
-// can trigger real external API cost via the research pass it (re)joins).
-// Kept as its own module-local counter, same as that sibling route — no
-// shared rate-limit module exists yet in this codebase.
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_REQUESTS = 10;
-
-const rateLimitState = new Map<string, { count: number; windowStart: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitState.get(ip);
-  if (!entry || now - entry.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    rateLimitState.set(ip, { count: 1, windowStart: now });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > RATE_LIMIT_MAX_REQUESTS;
-}
+// --- Rate limiting -----------------------------------------------------
+// See src/lib/rateLimit.ts for why this buckets on a single shared key
+// rather than a per-IP one.
+const rateLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
 
 // Test-only escape hatch, mirroring src/app/api/destinations/[id]/research/route.ts.
 export function _resetRateLimitForTesting(): void {
-  rateLimitState.clear();
-}
-
-function getClientIp(request: Request): string {
-  const forwardedFor = request.headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    return forwardedFor.split(",")[0]!.trim();
-  }
-  return "unknown";
+  rateLimiter.reset();
 }
 
 // --- SSE event shapes -----------------------------------------------------
@@ -108,29 +83,24 @@ async function* runResearch(
   markComplete(db, { kind: "neighborhood", id: neighborhood.id });
 }
 
-function sseEncode(encoder: TextEncoder, event: string, data: unknown): Uint8Array {
-  return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const ip = getClientIp(request);
-  if (isRateLimited(ip)) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  if (rateLimiter.isRateLimited()) {
+    return sseErrorResponse("Too many requests. Please wait a moment and try again.");
   }
 
   const { id: idStr } = await params;
   const id = Number(idStr);
   if (!Number.isInteger(id) || id <= 0) {
-    return NextResponse.json({ error: "Invalid neighborhood id" }, { status: 400 });
+    return sseErrorResponse("Invalid neighborhood id");
   }
 
   const db = getDb();
   const neighborhood = db.select().from(neighborhoods).where(eq(neighborhoods.id, id)).all()[0];
   if (!neighborhood) {
-    return NextResponse.json({ error: "Neighborhood not found" }, { status: 404 });
+    return sseErrorResponse("Neighborhood not found");
   }
 
   const destination = db
@@ -139,7 +109,7 @@ export async function GET(
     .where(eq(destinations.id, neighborhood.destinationId))
     .all()[0];
   if (!destination) {
-    return NextResponse.json({ error: "Destination not found" }, { status: 404 });
+    return sseErrorResponse("Destination not found");
   }
 
   const encoder = new TextEncoder();

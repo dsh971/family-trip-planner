@@ -728,14 +728,24 @@ export default function DiscoveryPage() {
                 {isResearching && !hasFinal && <PlaceCardSkeleton />}
               </div>
 
+              {/* Disabled while the SSE research run is still active (code review
+                  finding, 2026-08-21): clicking mid-stream used to call POST
+                  /api/discovery directly, which — since the neighborhood's
+                  researchStatus was still "in_progress" — ran a second, fully
+                  live researchNeighborhoodPlaces pass completely outside
+                  orchestrator.startOrJoin, concurrently with the SSE-driven
+                  run already writing to the same rows. Mirrors neighborhoods
+                  /page.tsx's manualTriggerDisabled pattern. */}
               <button
                 onClick={() => { void runDiscovery(); }}
+                disabled={isResearching}
                 style={{
                   fontSize: "0.8rem",
                   color: "var(--fg-3)",
                   background: "none",
                   border: "none",
-                  cursor: "pointer",
+                  cursor: isResearching ? "not-allowed" : "pointer",
+                  opacity: isResearching ? 0.5 : 1,
                   textDecoration: "underline",
                   padding: "4px 0",
                   display: "block",

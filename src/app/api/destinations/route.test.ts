@@ -167,7 +167,7 @@ describe("POST /api/destinations", () => {
     expect(json.errors.some((e) => e.field === "name")).toBe(true);
   });
 
-  it("rejects requests beyond the per-IP rate limit with a 429", async () => {
+  it("rejects requests beyond the rate limit with a 429", async () => {
     const ip = "198.51.100.7";
     let lastStatus = 200;
 
@@ -179,13 +179,20 @@ describe("POST /api/destinations", () => {
     expect(lastStatus).toBe(429);
   });
 
-  it("does not rate limit a different IP after one IP is exhausted", async () => {
+  // Code review fix (2026-08-21, security P0): the rate limiter used to key
+  // its bucket off the client-supplied X-Forwarded-For header, which any
+  // caller can rotate per request to get a fresh budget — this test used to
+  // assert exactly that bypass ("does not rate limit a different IP after
+  // one IP is exhausted"). It now buckets on a single shared key
+  // (src/lib/rateLimit.ts) regardless of the header, so rotating it must NOT
+  // grant a fresh budget.
+  it("does not grant a fresh budget when the X-Forwarded-For header changes (spoofing protection)", async () => {
     const exhaustedIp = "198.51.100.8";
     for (let i = 0; i < 15; i++) {
       await makePostRequest({ name: `City ${i}` }, exhaustedIp);
     }
 
     const res = await makePostRequest({ name: "Fresh City" }, "198.51.100.9");
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(429);
   });
 });
