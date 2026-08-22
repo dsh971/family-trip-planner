@@ -1,4 +1,5 @@
 import {
+  index,
   integer,
   real,
   sqliteTable,
@@ -234,7 +235,18 @@ export const places = sqliteTable(
     // AI-generated or editorial description of the place
     description: text("description"),
   },
-  (table) => [uniqueIndex("places_place_id_neighborhood_idx").on(table.placeId, table.neighborhoodId)]
+  (table) => [
+    uniqueIndex("places_place_id_neighborhood_idx").on(table.placeId, table.neighborhoodId),
+    // Code review finding (2026-08-21, performance P2): the existing unique
+    // index above is on (placeId, neighborhoodId) — it can't serve a
+    // lookup by neighborhoodId alone (SQLite can only use a composite
+    // index's leading column(s), and placeId leads here). The rewrite's
+    // cache-aware reads (src/app/api/neighborhoods/[id]/research/route.ts,
+    // src/app/api/discovery/route.ts) query `WHERE neighborhoodId = ?` as
+    // their primary path once research is complete, on a table that now
+    // grows unbounded across arbitrary destinations instead of just Tokyo.
+    index("places_neighborhood_id_idx").on(table.neighborhoodId),
+  ]
 );
 
 // ---------------------------------------------------------------------------

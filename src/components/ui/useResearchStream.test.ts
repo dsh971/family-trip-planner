@@ -157,64 +157,116 @@ describe("useResearchStream", () => {
     expect(result.current.errorMessage).toBe("DB error");
   });
 
+  // Reconnects are backed off (code review fix, 2026-08-21, reliability P2)
+  // rather than firing immediately, so these tests advance fake timers past
+  // the max possible delay (base/cap + jitter) between each drop to
+  // deterministically flush the pending reconnect before continuing.
+  const MAX_POSSIBLE_RECONNECT_DELAY_MS = 6000;
+
   it("exceeding the retry cap after repeated connection drops settles to error with a retry action available", async () => {
-    const { result } = renderHook(() =>
-      useResearchStream("/api/neighborhoods/1/research", {
-        itemEventNames: ["place"],
-        createEventSource,
-        maxRetries: 2,
-      })
-    );
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() =>
+        useResearchStream("/api/neighborhoods/1/research", {
+          itemEventNames: ["place"],
+          createEventSource,
+          maxRetries: 2,
+        })
+      );
 
-    act(() => {
-      latestInstance().emitConnectionError(); // attempt 1
-    });
-    act(() => {
-      latestInstance().emitConnectionError(); // attempt 2
-    });
-    act(() => {
-      latestInstance().emitConnectionError(); // exceeds cap
-    });
+      act(() => {
+        latestInstance().emitConnectionError(); // attempt 1 (backed-off reconnect scheduled)
+      });
+      act(() => {
+        vi.advanceTimersByTime(MAX_POSSIBLE_RECONNECT_DELAY_MS);
+      });
+      act(() => {
+        latestInstance().emitConnectionError(); // attempt 2 (backed-off reconnect scheduled)
+      });
+      act(() => {
+        vi.advanceTimersByTime(MAX_POSSIBLE_RECONNECT_DELAY_MS);
+      });
+      act(() => {
+        latestInstance().emitConnectionError(); // exceeds cap — settles synchronously, no timer
+      });
 
-    await waitFor(() => expect(result.current.status).toBe("error"));
-    expect(typeof result.current.retry).toBe("function");
-    // Three drops => the hook opened one initial connection plus one fresh
-    // reconnect per recoverable drop (2, since maxRetries=2), for 3 total.
-    expect(MockEventSource.instances).toHaveLength(3);
+      expect(result.current.status).toBe("error");
+      expect(typeof result.current.retry).toBe("function");
+      // Three drops => the hook opened one initial connection plus one fresh
+      // reconnect per recoverable drop (2, since maxRetries=2), for 3 total.
+      expect(MockEventSource.instances).toHaveLength(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("backs off before reconnecting rather than firing immediately", () => {
+    vi.useFakeTimers();
+    try {
+      renderHook(() =>
+        useResearchStream("/api/neighborhoods/1/research", {
+          itemEventNames: ["place"],
+          createEventSource,
+          maxRetries: 1,
+        })
+      );
+
+      act(() => {
+        latestInstance().emitConnectionError();
+      });
+
+      // No reconnect yet — the backoff timer hasn't fired.
+      expect(MockEventSource.instances).toHaveLength(1);
+
+      act(() => {
+        vi.advanceTimersByTime(MAX_POSSIBLE_RECONNECT_DELAY_MS);
+      });
+
+      expect(MockEventSource.instances).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("a recoverable mid-stream connection drop triggers a fresh reconnect and ends in a non-error terminal status", async () => {
-    const { result } = renderHook(() =>
-      useResearchStream("/api/neighborhoods/1/research", {
-        itemEventNames: ["place"],
-        createEventSource,
-        maxRetries: 3,
-      })
-    );
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() =>
+        useResearchStream("/api/neighborhoods/1/research", {
+          itemEventNames: ["place"],
+          createEventSource,
+          maxRetries: 3,
+        })
+      );
 
-    act(() => {
-      latestInstance().emit("place", { name: "Ramen shop" });
-    });
-    expect(result.current.items).toHaveLength(1);
+      act(() => {
+        latestInstance().emit("place", { name: "Ramen shop" });
+      });
+      expect(result.current.items).toHaveLength(1);
 
-    act(() => {
-      latestInstance().emitConnectionError();
-    });
+      act(() => {
+        latestInstance().emitConnectionError();
+      });
+      act(() => {
+        vi.advanceTimersByTime(MAX_POSSIBLE_RECONNECT_DELAY_MS);
+      });
 
-    // A fresh EventSource was opened, and the local item buffer was reset
-    // in favor of whatever the fresh connection replays (server backfill).
-    expect(MockEventSource.instances).toHaveLength(2);
-    expect(result.current.status).toBe("researching");
+      // A fresh EventSource was opened, and the local item buffer was reset
+      // in favor of whatever the fresh connection replays (server backfill).
+      expect(MockEventSource.instances).toHaveLength(2);
+      expect(result.current.status).toBe("researching");
 
-    act(() => {
-      latestInstance().emit("place", { name: "Ramen shop" });
-      latestInstance().emit("place", { name: "Park" });
-      latestInstance().emit("done", { researchStatus: "complete" });
-    });
+      act(() => {
+        latestInstance().emit("place", { name: "Ramen shop" });
+        latestInstance().emit("place", { name: "Park" });
+        latestInstance().emit("done", { researchStatus: "complete" });
+      });
 
-    await waitFor(() => expect(result.current.status).toBe("complete"));
-    expect(result.current.status).not.toBe("error");
-    expect(result.current.items).toHaveLength(2);
+      expect(result.current.status).toBe("complete");
+      expect(result.current.items).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("retry() re-opens a fresh connection and resets state", async () => {

@@ -35,6 +35,12 @@ export class MockEventSource {
   emitConnectionError() {
     this.onerror?.({});
   }
+
+  /** Simulate the server's own terminal `event: error` frame (a MessageEvent, has .data). */
+  emitNamedError(data: { message?: string }) {
+    const payload = { data: JSON.stringify(data) };
+    this.onerror?.(payload);
+  }
 }
 
 /** Installs the stub as `globalThis.EventSource` and resets the instance log. */

@@ -1,0 +1,1 @@
+CREATE INDEX `places_neighborhood_id_idx` ON `places` (`neighborhood_id`);

@@ -2,12 +2,12 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { destinations, neighborhoods, places, type Destination, type Neighborhood } from "@/db/schema";
 import {
-  startOrJoin,
   isStale,
   markInProgress,
   markComplete,
   markPartial,
 } from "@/services/research/orchestrator";
+import { buildResearchSSEResponse } from "@/services/research/sseResearchStream";
 import {
   researchNeighborhoodPlaces,
   createResearchAccumulators,
@@ -16,7 +16,7 @@ import {
 } from "@/services/discovery/research";
 import type { DiscoveryCandidate } from "@/services/discovery/filters";
 import { createRateLimiter } from "@/lib/rateLimit";
-import { sseEncode, sseErrorResponse } from "@/lib/sse";
+import { sseErrorResponse } from "@/lib/sse";
 
 // U6 (plan 2026-08-20-011): SSE endpoint that runs (or joins) a
 // neighborhood's place-research pass and streams results as they resolve —
@@ -112,67 +112,22 @@ export async function GET(
     return sseErrorResponse("Destination not found");
   }
 
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        // Cached/fresh path (R7, AE2): complete and not stale — stream the
-        // already-persisted places immediately. Still shaped as SSE events
-        // for a consistent client contract, but with no research run and no
-        // wait state.
-        if (neighborhood.researchStatus === "complete" && !isStale(neighborhood.researchedAt)) {
-          const existing = db.select().from(places).where(eq(places.neighborhoodId, neighborhood.id)).all();
-          const finalized = finalizeDistances(existing.map(placeRowToCandidateBase), neighborhood);
-          for (const place of finalized) {
-            controller.enqueue(
-              sseEncode(encoder, "place", { type: "place", neighborhoodId: neighborhood.id, place })
-            );
-          }
-          controller.enqueue(sseEncode(encoder, "done", { researchStatus: "complete" }));
-          controller.close();
-          return;
-        }
-
-        // Otherwise: not_started, in_progress, partial, or stale-complete —
-        // all treated as "run (or join) research," mirroring U5's route.
-        const runKey = `neighborhood:${neighborhood.id}`;
-        const events = startOrJoin(runKey, () => runResearch(db, neighborhood, destination));
-
-        try {
-          for await (const event of events) {
-            controller.enqueue(sseEncode(encoder, event.type, event));
-          }
-          controller.enqueue(sseEncode(encoder, "done", { researchStatus: "complete" }));
-        } catch (err) {
-          // runResearch already called markPartial before rethrowing — this
-          // catch only needs to surface the terminal SSE event to whichever
-          // subscriber (original caller or joiner) is reading this stream.
-          controller.enqueue(
-            sseEncode(encoder, "partial", {
-              researchStatus: "partial",
-              error: err instanceof Error ? err.message : String(err),
-            })
-          );
-        }
-        controller.close();
-      } catch (err) {
-        // Unexpected failure outside the research generator itself (e.g. a
-        // DB error reading the cached-path places) — close the stream with
-        // an explicit error event rather than hanging the connection open.
-        controller.enqueue(
-          sseEncode(encoder, "error", { message: err instanceof Error ? err.message : String(err) })
-        );
-        controller.close();
+  return buildResearchSSEResponse({
+    // Cached/fresh path (R7, AE2): complete and not stale — stream the
+    // already-persisted places immediately. Still shaped as SSE events for
+    // a consistent client contract, but with no research run and no wait
+    // state.
+    isCached: neighborhood.researchStatus === "complete" && !isStale(neighborhood.researchedAt),
+    streamCached: (enqueue) => {
+      const existing = db.select().from(places).where(eq(places.neighborhoodId, neighborhood.id)).all();
+      const finalized = finalizeDistances(existing.map(placeRowToCandidateBase), neighborhood);
+      for (const place of finalized) {
+        enqueue("place", { type: "place", neighborhoodId: neighborhood.id, place });
       }
     },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
+    // Otherwise: not_started, in_progress, partial, or stale-complete — all
+    // treated as "run (or join) research," mirroring U5's route.
+    runKey: `neighborhood:${neighborhood.id}`,
+    runFn: () => runResearch(db, neighborhood, destination),
   });
 }

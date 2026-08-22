@@ -2,12 +2,12 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { destinations, neighborhoods, type Destination, type Neighborhood } from "@/db/schema";
 import {
-  startOrJoin,
   isStale,
   markInProgress,
   markComplete,
   markPartial,
 } from "@/services/research/orchestrator";
+import { buildResearchSSEResponse } from "@/services/research/sseResearchStream";
 import { syncCity } from "@/services/wanderlust-goat/client";
 import {
   generateDestinationHighlight,
@@ -15,7 +15,7 @@ import {
   type NeighborhoodCandidate,
 } from "@/services/neighborhoods/discover";
 import { createRateLimiter } from "@/lib/rateLimit";
-import { sseEncode, sseErrorResponse } from "@/lib/sse";
+import { sseErrorResponse } from "@/lib/sse";
 
 // U5 (plan 2026-08-20-011): SSE endpoint that runs (or joins) a
 // destination's neighborhood-discovery research pass and streams results as
@@ -237,80 +237,36 @@ export async function GET(
   // on a forced re-run — only neighborhood discovery re-runs.
   const force = new URL(request.url).searchParams.get("force") === "true";
 
-  const encoder = new TextEncoder();
-
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        // Cached/fresh path (R7, AE2): complete and not stale — stream the
-        // already-persisted neighborhoods immediately. Still shaped as SSE
-        // events for a consistent client contract, but with no research run
-        // and no wait state.
-        if (!force && destination.researchStatus === "complete" && !isStale(destination.researchedAt)) {
-          // A destination backfilled straight to "complete" (migration
-          // 0005, e.g. Tokyo) never had a live research run and so was
-          // never wgSynced either — ensureWgSynced closes that gap on the
-          // fast path too, not just the live-research path below. Not
-          // awaited: this branch's whole contract (R7/R9) is "renders
-          // immediately, no wait state" — see ensureWgSynced's comment.
-          void ensureWgSynced(db, destination);
-          const existing = db
-            .select()
-            .from(neighborhoods)
-            .where(eq(neighborhoods.destinationId, destination.id))
-            .all();
-          for (const n of existing) {
-            controller.enqueue(sseEncode(encoder, "neighborhood", { type: "neighborhood", neighborhood: n }));
-          }
-          controller.enqueue(sseEncode(encoder, "done", { researchStatus: "complete" }));
-          controller.close();
-          return;
-        }
-
-        // Otherwise: not_started, in_progress, partial, or stale-complete —
-        // all treated as "run (or join) research" per the state machine in
-        // this plan's High-Level Technical Design. Stale-complete is
-        // routed through the same path as not_started; ensureWgSynced's own
-        // wgSyncedAt gate (not this branch) is what keeps an
-        // already-synced destination from re-syncing WG on a stale re-run.
-        const runKey = `destination:${destination.id}`;
-        const events = startOrJoin(runKey, () => runResearch(db, destination));
-
-        try {
-          for await (const event of events) {
-            controller.enqueue(sseEncode(encoder, event.type, event));
-          }
-          controller.enqueue(sseEncode(encoder, "done", { researchStatus: "complete" }));
-        } catch (err) {
-          // runResearch already called markPartial before rethrowing — this
-          // catch only needs to surface the terminal SSE event to whichever
-          // subscriber (original caller or joiner) is reading this stream.
-          controller.enqueue(
-            sseEncode(encoder, "partial", {
-              researchStatus: "partial",
-              error: err instanceof Error ? err.message : String(err),
-            })
-          );
-        }
-        controller.close();
-      } catch (err) {
-        // Unexpected failure outside the research generator itself (e.g. a
-        // DB error reading the cached-path neighborhoods) — close the
-        // stream with an explicit error event rather than hanging the
-        // connection open.
-        controller.enqueue(
-          sseEncode(encoder, "error", { message: err instanceof Error ? err.message : String(err) })
-        );
-        controller.close();
+  return buildResearchSSEResponse({
+    // Cached/fresh path (R7, AE2): complete and not stale — stream the
+    // already-persisted neighborhoods immediately. Still shaped as SSE
+    // events for a consistent client contract, but with no research run and
+    // no wait state.
+    isCached: !force && destination.researchStatus === "complete" && !isStale(destination.researchedAt),
+    streamCached: (enqueue) => {
+      // A destination backfilled straight to "complete" (migration 0005,
+      // e.g. Tokyo) never had a live research run and so was never
+      // wgSynced either — ensureWgSynced closes that gap on the fast path
+      // too, not just the live-research path below. Not awaited: this
+      // branch's whole contract (R7/R9) is "renders immediately, no wait
+      // state" — see ensureWgSynced's comment.
+      void ensureWgSynced(db, destination);
+      const existing = db
+        .select()
+        .from(neighborhoods)
+        .where(eq(neighborhoods.destinationId, destination.id))
+        .all();
+      for (const n of existing) {
+        enqueue("neighborhood", { type: "neighborhood", neighborhood: n });
       }
     },
-  });
-
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
+    // Otherwise: not_started, in_progress, partial, or stale-complete — all
+    // treated as "run (or join) research" per the state machine in the
+    // rewrite's High-Level Technical Design. Stale-complete is routed
+    // through the same path as not_started; ensureWgSynced's own
+    // wgSyncedAt gate (not this branch) is what keeps an already-synced
+    // destination from re-syncing WG on a stale re-run.
+    runKey: `destination:${destination.id}`,
+    runFn: () => runResearch(db, destination),
   });
 }
