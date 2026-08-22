@@ -159,4 +159,49 @@ describe("DiscoveryPage — U7 SSE progressive reveal", () => {
 
     await waitFor(() => expect(button.disabled).toBe(false));
   });
+
+  // Testing gap closed (code review finding, 2026-08-21, testing P2): the
+  // error-state Alert + retry action had no page-level test.
+  it("error: the route's terminal error event shows an Alert with a retry action that reconnects", async () => {
+    global.fetch = mockFetch({}) as unknown as typeof fetch;
+
+    render(<DiscoveryPage />);
+
+    await waitFor(() => expect(eventSourcesFor("/api/neighborhoods/7/research")).toHaveLength(1));
+
+    act(() => {
+      latestEventSource().emitNamedError({ message: "DB error" });
+    });
+
+    await waitFor(() => expect(screen.getByText("DB error")).toBeTruthy());
+
+    act(() => {
+      screen.getByText("Try again").click();
+    });
+
+    // retry() re-opens a fresh connection.
+    await waitFor(() => expect(eventSourcesFor("/api/neighborhoods/7/research")).toHaveLength(2));
+  });
+
+  // Testing gap closed (code review finding, 2026-08-21, testing P2): the
+  // "partial" branch (some places resolved, then the source failed) had no
+  // page-level test — only "complete" was covered.
+  it("partial: a run that resolves some places then fails still finalizes and shows the resolved results", async () => {
+    global.fetch = mockFetch({
+      discoveryResults: discoveryResponse(["Ramen Ya"]),
+    }) as unknown as typeof fetch;
+
+    render(<DiscoveryPage />);
+
+    await waitFor(() => expect(eventSourcesFor("/api/neighborhoods/7/research")).toHaveLength(1));
+
+    act(() => {
+      const es = latestEventSource();
+      es.emit("place", { type: "place", neighborhoodId: 7, place: rawPlace("p0", "Ramen Ya") });
+      es.emit("partial", { researchStatus: "partial", error: "source failed" });
+    });
+
+    await waitFor(() => expect(screen.getByText("Ramen Ya")).toBeTruthy());
+    expect(screen.queryByText(/DB error|source failed/)).toBeNull();
+  });
 });

@@ -171,4 +171,48 @@ describe("NeighborhoodsPage — U7 SSE progressive reveal", () => {
     // Still exactly one forced connection — the second click was a no-op.
     expect(eventSourcesFor("/api/destinations/5/research?force=true")).toHaveLength(1);
   });
+
+  // Testing gap closed (code review finding, 2026-08-21, testing P2): the
+  // error-state Alert + retry action had no page-level test.
+  it("error: the route's terminal error event shows an Alert with a retry action that reconnects", async () => {
+    const user = userEvent.setup();
+    global.fetch = mockFetch({}) as unknown as typeof fetch;
+
+    render(<NeighborhoodsPage />);
+
+    await waitFor(() => expect(eventSourcesFor("/api/destinations/5/research")).toHaveLength(1));
+
+    act(() => {
+      latestEventSource().emitNamedError({ message: "DB error" });
+    });
+
+    await waitFor(() => expect(screen.getByText("DB error")).toBeTruthy());
+
+    await user.click(screen.getByText("Try again"));
+
+    // retry() re-opens a fresh connection.
+    await waitFor(() => expect(eventSourcesFor("/api/destinations/5/research")).toHaveLength(2));
+  });
+
+  // Testing gap closed (code review finding, 2026-08-21, testing P2): the
+  // "partial" branch (some neighborhoods resolved, then the source failed)
+  // had no page-level test — only "complete" was covered.
+  it("partial: a run that resolves some neighborhoods then fails still shows the resolved results, not an error", async () => {
+    global.fetch = mockFetch({
+      rankedNeighborhoods: [rankedRow(1, "Shibuya")],
+    }) as unknown as typeof fetch;
+
+    render(<NeighborhoodsPage />);
+
+    await waitFor(() => expect(eventSourcesFor("/api/destinations/5/research")).toHaveLength(1));
+
+    act(() => {
+      const es = latestEventSource();
+      es.emit("neighborhood", { type: "neighborhood", neighborhood: neighborhoodRow(1, "Shibuya") });
+      es.emit("partial", { researchStatus: "partial", error: "source failed" });
+    });
+
+    await waitFor(() => expect(screen.getByText("Shibuya")).toBeTruthy());
+    expect(screen.queryByText(/Couldn't load neighborhoods/)).toBeNull();
+  });
 });

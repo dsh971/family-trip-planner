@@ -49,6 +49,20 @@ export interface UseResearchStreamResult<T = unknown> {
 
 const DEFAULT_MAX_RETRIES = 3;
 
+// Reconnect backoff: exponential with jitter, capped. Code review finding
+// (2026-08-21, reliability P2): reconnects used to fire immediately with no
+// delay — a burst of near-simultaneous reconnects (e.g. a real outage
+// causing several drops in quick succession) could trip the SSE routes'
+// per-route rate limiter faster than a backed-off client would.
+const RECONNECT_BASE_DELAY_MS = 300;
+const RECONNECT_MAX_DELAY_MS = 5000;
+const RECONNECT_JITTER_MS = 100;
+
+function computeReconnectDelayMs(attempt: number): number {
+  const exponential = RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1);
+  return Math.min(RECONNECT_MAX_DELAY_MS, exponential) + Math.random() * RECONNECT_JITTER_MS;
+}
+
 export function useResearchStream<T = unknown>(
   url: string | null,
   options: UseResearchStreamOptions
@@ -100,6 +114,7 @@ export function useResearchStream<T = unknown>(
 
     let cancelled = false;
     let currentEs: EventSource | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
     terminalRef.current = false;
     itemsRef.current = [];
@@ -213,7 +228,10 @@ export function useResearchStream<T = unknown>(
         // is correct, not lossy.
         itemsRef.current = [];
         setItems([]);
-        connect();
+        reconnectTimeout = setTimeout(() => {
+          if (cancelled) return;
+          connect();
+        }, computeReconnectDelayMs(attemptsRef.current));
       };
     }
 
@@ -221,6 +239,7 @@ export function useResearchStream<T = unknown>(
 
     return () => {
       cancelled = true;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
       currentEs?.close();
       currentEs = null;
     };
