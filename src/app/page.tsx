@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@sumiui/react";
 import { Search } from "lucide-react";
 import { getActiveTripId, clearActiveTripId } from "@/lib/activeTrip";
+import { WebNav } from "@/components/ui/WebNav";
 
 // Design-fidelity fix (2026-08-22, revised 2026-08-23): the shipped Home
 // page had drifted from the Hybrid mockup it was meant to implement.
@@ -256,7 +257,14 @@ export default function Home() {
         }}
       />
 
-      <div className="home-hero-header">
+      {/* Mobile only (Hybrid-Home.dc.html has no nav chrome at all) — hidden
+          at >=1024px via .mobile-chrome, same convention as AppHeader/
+          BottomNav. Desktop gets the real WebNav below instead, matching
+          Web-Home.dc.html's `<dc-import name="WebNav" active="home">` —
+          discovered missing (Home had no way back from the desktop nav at
+          all) after a direct user report; the earlier build of this unit
+          only wired WebNav into non-Home routes. */}
+      <div className="home-hero-header mobile-chrome">
         <span style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
           <span className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
             Viridian
@@ -273,6 +281,14 @@ export default function Home() {
           </span>
         </span>
       </div>
+
+      {/* Desktop (>=1024px) — real WebNav, matching Web-Home.dc.html's
+          `<dc-import name="WebNav" active="home">`. tripId is passed when
+          an active trip exists so Area/Discover/Plan link to it instead of
+          rendering disabled — the mockup itself is a static demo and
+          doesn't model this, but every other page's WebNav usage is
+          trip-data-aware, and there's no reason Home's shouldn't be too. */}
+      <WebNav tripId={activeTrip ? String(activeTrip.id) : undefined} />
 
       <div className="home-hero-content">
         {activeTrip ? (

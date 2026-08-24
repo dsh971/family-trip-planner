@@ -12,6 +12,7 @@ import Home from "./page";
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+  usePathname: () => "/",
 }));
 
 // getActiveTripId/setActiveTripId/clearActiveTripId wrap window.localStorage

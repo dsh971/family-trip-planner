@@ -26,13 +26,26 @@ function renderNav(props: Partial<WebNavProps> = {}) {
 }
 
 describe("WebNav", () => {
-  it("renders all four route tabs", () => {
+  it("renders all five tabs (Home plus the four route tabs)", () => {
     mockPathname = "/trip/10/neighborhoods";
     renderNav();
+    expect(screen.getByText("Home")).toBeTruthy();
     expect(screen.getByText("Profile")).toBeTruthy();
     expect(screen.getByText("Area")).toBeTruthy();
     expect(screen.getByText("Discover")).toBeTruthy();
     expect(screen.getByText("Plan")).toBeTruthy();
+  });
+
+  it("highlights Home only on an exact '/' match, not as a substring of every path", () => {
+    // Home's match ("/") would be a substring of every pathname under
+    // .includes() — this is what `exact` on the tab def guards against.
+    mockPathname = "/trip/10/neighborhoods";
+    renderNav();
+    expect(screen.getByText("Home").getAttribute("style")).not.toContain("var(--accent)");
+
+    mockPathname = "/";
+    renderNav();
+    expect(screen.getAllByText("Home")[1]!.getAttribute("style")).toContain("var(--accent)");
   });
 
   it("highlights the tab matching the current pathname", () => {

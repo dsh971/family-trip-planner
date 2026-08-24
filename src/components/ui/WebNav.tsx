@@ -6,7 +6,7 @@ import { useTheme } from "@/components/providers/ThemeProvider";
 import { Button } from "@sumiui/react";
 import { Moon, Sun } from "lucide-react";
 
-type Step = "profile" | "area" | "discover" | "plan";
+type Step = "home" | "profile" | "area" | "discover" | "plan";
 
 interface TabDef {
   id: Step;
@@ -16,12 +16,21 @@ interface TabDef {
   // pass currentStep="discover" to StepProgress (see that component), so
   // both routes should light up the same "Discover" tab here.
   matches: string[];
+  // "home"'s match ("/") is a substring of every path — needs exact
+  // equality instead of the .includes() check every other tab uses.
+  exact?: boolean;
 }
 
 // Reuses StepProgress's Profile/Area/Discover/Plan naming and route mapping
 // (src/components/ui/StepProgress.tsx) rather than inventing new labels —
-// per plan 2026-08-23-002-feat-hybrid-design-fidelity-gaps, U2.
+// per plan 2026-08-23-002-feat-hybrid-design-fidelity-gaps, U2. "Home" was
+// missing from that unit's tab list entirely (StepProgress has no Home
+// step, since it's a trip-progress indicator, not a global nav) — added
+// per WebNav.dc.html's actual tab order (Home first), discovered missing
+// only once a user pointed out there was no way back to Home from the
+// desktop nav.
 const TABS: TabDef[] = [
+  { id: "home", label: "Home", matches: ["/"], exact: true },
   { id: "profile", label: "Profile", matches: ["/profile"] },
   { id: "area", label: "Area", matches: ["/neighborhoods"] },
   { id: "discover", label: "Discover", matches: ["/discovery", "/decisions"] },
@@ -29,6 +38,7 @@ const TABS: TabDef[] = [
 ];
 
 function tabHref(id: Step, tripId?: string): string | undefined {
+  if (id === "home") return "/";
   if (!tripId) {
     // Pre-trip (no tripId yet): only "Profile" has a valid destination
     // (the standalone /profile create-trip route) — Area/Discover/Plan
@@ -79,7 +89,9 @@ export function WebNav({ tripId, tripName, tripDates }: WebNavProps) {
         </span>
         <nav className="flex items-center gap-1" aria-label="Trip planning steps">
           {TABS.map((tab) => {
-            const active = tab.matches.some((m) => pathname.includes(m));
+            const active = tab.exact
+              ? tab.matches.includes(pathname)
+              : tab.matches.some((m) => pathname.includes(m));
             const href = tabHref(tab.id, tripId);
             const textStyle = {
               color: active ? "var(--accent)" : "var(--fg-3)",
