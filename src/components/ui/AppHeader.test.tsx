@@ -34,4 +34,44 @@ describe("AppHeader", () => {
     );
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("shows a back link to the previous stage in the flow", () => {
+    mockPathname = "/trip/1/discovery";
+    render(
+      <ThemeProvider>
+        <AppHeader />
+      </ThemeProvider>
+    );
+    expect(screen.getByLabelText("Back").getAttribute("href")).toBe("/trip/1/neighborhoods");
+  });
+
+  it("points the back link at Home from the pre-trip /profile route", () => {
+    mockPathname = "/profile";
+    render(
+      <ThemeProvider>
+        <AppHeader />
+      </ThemeProvider>
+    );
+    expect(screen.getByLabelText("Back").getAttribute("href")).toBe("/");
+  });
+
+  it("chains back links through the full flow order", () => {
+    const expected: [string, string][] = [
+      ["/trip/1/profile", "/"],
+      ["/trip/1/neighborhoods", "/trip/1/profile"],
+      ["/trip/1/discovery", "/trip/1/neighborhoods"],
+      ["/trip/1/decisions", "/trip/1/discovery"],
+      ["/trip/1/itinerary", "/trip/1/decisions"],
+    ];
+    for (const [path, expectedHref] of expected) {
+      mockPathname = path;
+      const { unmount } = render(
+        <ThemeProvider>
+          <AppHeader />
+        </ThemeProvider>
+      );
+      expect(screen.getByLabelText("Back").getAttribute("href")).toBe(expectedHref);
+      unmount();
+    }
+  });
 });
