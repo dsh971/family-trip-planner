@@ -64,9 +64,10 @@ export function createResearchAccumulators(): ResearchAccumulators {
 
 // Converts a persisted `places` row back into the in-memory candidate shape
 // used by both callers (distanceFromCentroidMeters/worthTheDetour still
-// need computing against a neighborhood — see finalizeDistances below;
-// photoReference is never persisted, matching the original DB-fallback
-// path's behavior of always returning null for it).
+// need computing against a neighborhood — see finalizeDistances below).
+// photoReference is read back from the persisted places.photoReference
+// column (U3, plan 2026-08-23-002) — null for rows that never had a Google
+// Places photo (e.g. WG/Tabelog-promoted candidates with no Google match).
 export function placeRowToCandidateBase(
   p: Place
 ): Omit<DiscoveryCandidate, "distanceFromCentroidMeters" | "worthTheDetour"> {
@@ -84,7 +85,7 @@ export function placeRowToCandidateBase(
     menuForChildren: p.menuForChildren,
     sources: p.sources as string[],
     corroborationScore: p.corroborationScore,
-    photoReference: null,
+    photoReference: p.photoReference ?? null,
     description: p.description ?? null,
   };
 }
@@ -216,6 +217,7 @@ export async function* researchNeighborhoodPlaces(
             corroborationScore: score,
             openingHours: hours,
             enrichedAt: new Date(),
+            photoReference: place.photoReference ?? null,
             description: details?.description ?? null,
           })
           .onConflictDoUpdate({
@@ -228,6 +230,7 @@ export async function* researchNeighborhoodPlaces(
               corroborationScore: score,
               openingHours: hours,
               enrichedAt: new Date(),
+              photoReference: sql`excluded.photo_reference`,
               description: sql`excluded.description`,
             },
           })

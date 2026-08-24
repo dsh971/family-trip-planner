@@ -230,8 +230,15 @@ export const places = sqliteTable(
       .default([]),
     // Timestamp when rating/reviewCount/location were last fetched
     enrichedAt: integer("enriched_at", { mode: "timestamp" }),
-    // Resolved CDN URL for the place photo (lh3.googleusercontent.com)
-    photoUrl: text("photo_url"),
+    // Google Places photo reference token (opaque, resolved to a CDN URL
+    // on demand via resolvePhotoUrl()/GET /api/places/photo?ref=... — the
+    // CDN URL itself is not persisted since Google's photo URLs are
+    // time-limited redirects, not stable links). Column was briefly named
+    // photo_url (commit 6feecb4) under the mistaken assumption a resolved
+    // URL would be stored here directly; renamed back since the raw
+    // reference token is what's actually captured and persisted (U3, plan
+    // 2026-08-23-002).
+    photoReference: text("photo_reference"),
     // AI-generated or editorial description of the place
     description: text("description"),
   },
