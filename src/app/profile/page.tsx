@@ -13,6 +13,7 @@ import {
 import { Users, Heart, Clock, CalendarDays, Building2, MapPin } from "lucide-react";
 import { setActiveTripId } from "@/lib/activeTrip";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import TripSetupArt from "@/components/ui/TripSetupArt";
 import { WebNav } from "@/components/ui/WebNav";
 
 interface PacingWindow {
@@ -271,11 +272,13 @@ export default function ProfilePage() {
           overflowY: "auto",
         }}
       >
-      <EditorialBackdrop variant="light" />
       <main
-        className="max-w-2xl mx-auto w-full px-6 space-y-4"
+        className="tripsetup-shell max-w-2xl mx-auto w-full px-6"
         style={{ paddingTop: "1rem", paddingBottom: "1.5rem" }}
       >
+      <div className="tripsetup-layout">
+      <div className="tripsetup-form-col space-y-4" style={{ position: "relative" }}>
+      <EditorialBackdrop variant="light" />
         <div className="mb-2">
           <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
             Trip Details
@@ -597,6 +600,15 @@ export default function ProfilePage() {
             <Alert variant="danger">{error}</Alert>
           )}
         </form>
+      </div>
+      <TripSetupArt
+        hint={
+          destinationName.trim()
+            ? `Map centers on ${destinationName.trim()} as you fill this in`
+            : "Map centers on your destination as you fill this in"
+        }
+      />
+      </div>
       </main>
       </div>
 

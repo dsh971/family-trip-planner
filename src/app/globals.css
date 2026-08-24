@@ -484,6 +484,74 @@ body {
   }
 }
 
+/*
+  Trip setup desktop split-pane. Missed entirely in the first design-
+  fidelity pass — Web-TripSetup.dc.html was dismissed as "different field
+  set, out of scope" without noticing the STRUCTURAL layout (a fixed-width
+  form column left, a persistent illustrated panel right) is the exact
+  same list+panel pattern every other desktop page already has, and is
+  fully achievable regardless of which fields the form column contains.
+  This app's form has 6 sections where the mockup's has 3 — the extra
+  sections just make the form column taller/scrollable; the panel itself
+  needs no knowledge of what's in the form.
+
+  `.tripsetup-form-col` is wider than Decisions/Itinerary's 460px (560px)
+  to give the real 6-section form breathing room the mockup's lean 3-field
+  version didn't need. `.tripsetup-shell` widens the page's own max-w-2xl
+  (Tailwind, layered) the same way `.decisions-shell`/`.itinerary-shell`
+  do, for the same unlayered-wins-over-layered reason documented at this
+  file's top.
+*/
+.tripsetup-art-col {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .tripsetup-shell {
+    max-width: 72rem;
+  }
+
+  .tripsetup-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 32px;
+  }
+
+  .tripsetup-form-col {
+    width: 560px;
+    flex-shrink: 0;
+  }
+
+  .tripsetup-art-col {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    position: sticky;
+    top: 88px;
+    height: 70vh;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line-1);
+    background: var(--bg-2);
+  }
+}
+
+/*
+  Unlike .decisions-map-col/.itinerary-desktop-map-col (where a Leaflet
+  component supplies the real content and bg-2 above is just a loading-
+  state fallback color sitting behind it), this panel's entire content IS
+  EditorialBackdrop — so EditorialBackdrop's own z-index:-1 (meant to sit
+  behind sibling page content) instead paints below .tripsetup-art-col's
+  own bg-2, since `position: sticky` on that element establishes the
+  stacking context -1 resolves against. Verified empirically: the grid/
+  blob were fully invisible until this override. Raising it to 0 puts it
+  above the parent's background while staying below the hint-bar sibling,
+  which comes later in DOM order at the default stacking level.
+*/
+.tripsetup-art-col .editorial-backdrop {
+  z-index: 0;
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;

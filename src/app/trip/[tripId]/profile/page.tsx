@@ -13,6 +13,7 @@ import {
 } from "@sumiui/react";
 import { Users, Heart, Clock, CalendarDays, Building2 } from "lucide-react";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import TripSetupArt from "@/components/ui/TripSetupArt";
 
 interface PacingWindow {
   name: string;
@@ -81,6 +82,7 @@ export default function EditProfilePage() {
   const [hotelName, setHotelName] = useState("");
   const [hotelAddress, setHotelAddress] = useState("");
   const [staysEntireTrip, setStaysEntireTrip] = useState(true);
+  const [destinationName, setDestinationName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +94,7 @@ export default function EditProfilePage() {
         hotelName: string | null;
         lodgingAnchorLat: number | null;
         lodgingAnchorAddress: string | null;
+        destinationName?: string;
         familyProfile: {
           adultCount: number;
           children: Child[];
@@ -101,6 +104,7 @@ export default function EditProfilePage() {
         };
       };
 
+      setDestinationName(data.destinationName ?? null);
       setAdultCount(data.familyProfile.adultCount);
       setChildren(data.familyProfile.children);
       setDietaryTags(data.familyProfile.dietaryTags.join(", "));
@@ -168,10 +172,12 @@ export default function EditProfilePage() {
   return (
     <>
         <main
-          className="max-w-2xl mx-auto w-full px-6 space-y-4"
-          style={{ paddingTop: "1rem", paddingBottom: "calc(77px + 2rem)", position: "relative" }}
+          className="tripsetup-shell max-w-2xl mx-auto w-full px-6"
+          style={{ paddingTop: "1rem", paddingBottom: "calc(77px + 2rem)" }}
         >
-          <EditorialBackdrop variant="light" />
+        <div className="tripsetup-layout">
+        <div className="tripsetup-form-col space-y-4" style={{ position: "relative" }}>
+        <EditorialBackdrop variant="light" />
           <div className="mb-2">
             {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
                 identical h1 comment — Sumi's unlayered h1 base rule always
@@ -385,6 +391,11 @@ export default function EditProfilePage() {
 
             {error && <Alert variant="danger">{error}</Alert>}
           </form>
+        </div>
+        <TripSetupArt
+          hint={destinationName ? `Editing your ${destinationName} trip` : "Editing your trip"}
+        />
+        </div>
         </main>
 
       {/* Fixed CTA bar — sits above the 4rem bottom nav on mobile; flush
