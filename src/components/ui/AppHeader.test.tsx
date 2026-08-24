@@ -22,7 +22,7 @@ describe("AppHeader", () => {
         <AppHeader />
       </ThemeProvider>
     );
-    expect(screen.getByText("Trip Planner")).toBeTruthy();
+    expect(screen.getByText("Viridian")).toBeTruthy();
   });
 
   it("renders nothing on Home ('/')", () => {

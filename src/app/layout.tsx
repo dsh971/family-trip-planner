@@ -17,7 +17,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "FamTripPlanner",
+  title: "Viridian",
   description: "Family trip planner for any destination",
 };
 

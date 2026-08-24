@@ -33,7 +33,7 @@ export function AppHeader() {
         className="text-lg font-semibold tracking-tight"
         style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
       >
-        Trip Planner
+        Viridian
       </span>
       <Button variant="ghost" size="sm" onClick={toggle} aria-label="Toggle theme">
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}

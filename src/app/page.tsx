@@ -257,8 +257,20 @@ export default function Home() {
       />
 
       <div className="home-hero-header">
-        <span className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
-          Trip Planner
+        <span style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+          <span className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
+            Viridian
+          </span>
+          {/* Tagline: shown here (more room, one full-bleed moment) but not
+              in AppHeader/WebNav's compact persistent bar — see Key
+              Technical Decisions in docs/plans/2026-08-23-001-feat-viridian-
+              rebrand-plan.md, U1. */}
+          <span
+            className="text-xs"
+            style={{ color: "var(--ink-300)", letterSpacing: "0.02em" }}
+          >
+            Family Trip Planner
+          </span>
         </span>
       </div>
 

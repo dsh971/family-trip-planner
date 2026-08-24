@@ -75,7 +75,7 @@ export function WebNav({ tripId, tripName, tripDates }: WebNavProps) {
           className="text-lg font-semibold tracking-tight"
           style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
         >
-          Trip Planner
+          Viridian
         </span>
         <nav className="flex items-center gap-1" aria-label="Trip planning steps">
           {TABS.map((tab) => {
