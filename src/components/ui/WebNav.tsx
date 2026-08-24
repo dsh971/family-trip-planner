@@ -6,51 +6,59 @@ import { useTheme } from "@/components/providers/ThemeProvider";
 import { Button } from "@sumiui/react";
 import { Moon, Sun } from "lucide-react";
 
-type Step = "home" | "profile" | "area" | "discover" | "plan";
+type Step = "home" | "trip" | "discover" | "saved" | "itinerary";
 
 interface TabDef {
   id: Step;
   label: string;
   // Path segment(s) that mark this tab active for the current pathname.
-  // "discover" lists two: decisions/page.tsx and discovery/page.tsx both
-  // pass currentStep="discover" to StepProgress (see that component), so
-  // both routes should light up the same "Discover" tab here.
   matches: string[];
   // "home"'s match ("/") is a substring of every path — needs exact
   // equality instead of the .includes() check every other tab uses.
   exact?: boolean;
 }
 
-// Reuses StepProgress's Profile/Area/Discover/Plan naming and route mapping
-// (src/components/ui/StepProgress.tsx) rather than inventing new labels —
-// per plan 2026-08-23-002-feat-hybrid-design-fidelity-gaps, U2. "Home" was
-// missing from that unit's tab list entirely (StepProgress has no Home
-// step, since it's a trip-progress indicator, not a global nav) — added
-// per WebNav.dc.html's actual tab order (Home first), discovered missing
-// only once a user pointed out there was no way back to Home from the
-// desktop nav.
+// CORRECTED (this unit's first build got this wrong): the four non-Home
+// tabs were originally borrowed from StepProgress's Profile/Area/Discover/
+// Plan naming — a *different*, 4-step trip-progress breadcrumb model, not
+// WebNav's actual nav structure. Checking the recovered WebNav.dc.html
+// mockup directly (its own `data-dc-script` props declare
+// options:["home","trip","discover","saved","itinerary"]) shows a 5-tab
+// model that doesn't line up 1:1: no separate "Area" tab exists at all —
+// Web-Neighborhoods.dc.html's own `active="trip"` confirms neighborhood
+// picking lights up "Trip setup", the same tab as /profile — and Discovery
+// and Decisions are two SEPARATE tabs ("Discover" / "Saved"), not one
+// merged tab, per Web-Discovery.dc.html's `active="discover"` vs
+// Web-Decisions.dc.html's `active="saved"`. StepProgress's own labels are
+// unrelated and untouched — it's a different component modeling a
+// different concept (linear progress, not top-level nav) and its
+// Profile/Area/Discover/Plan breadcrumb stays as-is.
 const TABS: TabDef[] = [
   { id: "home", label: "Home", matches: ["/"], exact: true },
-  { id: "profile", label: "Profile", matches: ["/profile"] },
-  { id: "area", label: "Area", matches: ["/neighborhoods"] },
-  { id: "discover", label: "Discover", matches: ["/discovery", "/decisions"] },
-  { id: "plan", label: "Plan", matches: ["/itinerary"] },
+  { id: "trip", label: "Trip setup", matches: ["/profile", "/neighborhoods"] },
+  { id: "discover", label: "Discover", matches: ["/discovery"] },
+  { id: "saved", label: "Saved", matches: ["/decisions"] },
+  { id: "itinerary", label: "Itinerary", matches: ["/itinerary"] },
 ];
 
 function tabHref(id: Step, tripId?: string): string | undefined {
   if (id === "home") return "/";
   if (!tripId) {
-    // Pre-trip (no tripId yet): only "Profile" has a valid destination
-    // (the standalone /profile create-trip route) — Area/Discover/Plan
-    // don't exist until a trip is created, same gating StepProgress applies
-    // via its `isDone && tripId` check.
-    return id === "profile" ? "/profile" : undefined;
+    // Pre-trip (no tripId yet): only "Trip setup" has a valid destination
+    // (the standalone /profile create-trip route) — the rest don't exist
+    // until a trip is created.
+    return id === "trip" ? "/profile" : undefined;
   }
   switch (id) {
-    case "profile": return `/trip/${tripId}/profile`;
-    case "area": return `/trip/${tripId}/neighborhoods`;
+    // Trip setup covers both /profile and /neighborhoods (per the mockup),
+    // but only has one link target — the profile edit page, since that's
+    // the more durable "come back and adjust trip setup" destination;
+    // neighborhood re-selection isn't something the top nav needs to
+    // shortcut to directly.
+    case "trip": return `/trip/${tripId}/profile`;
     case "discover": return `/trip/${tripId}/discovery`;
-    case "plan": return `/trip/${tripId}/itinerary`;
+    case "saved": return `/trip/${tripId}/decisions`;
+    case "itinerary": return `/trip/${tripId}/itinerary`;
   }
 }
 
@@ -87,7 +95,7 @@ export function WebNav({ tripId, tripName, tripDates }: WebNavProps) {
         >
           Viridian
         </span>
-        <nav className="flex items-center gap-1" aria-label="Trip planning steps">
+        <nav className="flex items-center gap-1" aria-label="Primary">
           {TABS.map((tab) => {
             const active = tab.exact
               ? tab.matches.includes(pathname)
