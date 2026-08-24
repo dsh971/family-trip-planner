@@ -59,6 +59,21 @@
   than trusting the layered @import above. --container-5xl/-7xl are NOT
   redeclared: verified only sm/md/lg/xl/2xl collide with Sumi's breakpoint
   block, so touching sizes that were never broken would be needless churn.
+
+  FIXED UPSTREAM 2026-08-24, kept as defensive redundancy: @sumiui/react
+  2.1.2 (bumped same day — package.json now pins ^2.1.2) namespaced Sumi's
+  own colliding token sets under `--sumi-*` (--sumi-container-*,
+  --sumi-shadow-*, --sumi-font-*, --sumi-text-*, --sumi-ease-*, etc.) —
+  a broad cleanup, not just this one collision. Verified directly against
+  the published 2.0.0/2.1.0/2.1.1/2.1.2 tarballs: the collision existed
+  identically in all three pre-2.1.2 versions (not something the 2.1.1
+  upgrade introduced), and 2.1.2's compiled bundle now defines
+  `--container-2xl` exactly once, correctly, at 42rem. Re-verified live
+  post-upgrade: computed max-width on a `max-w-2xl` element is 672px
+  without this block even mattering anymore. Left in place rather than
+  removed — harmless, and cheap insurance against a future downgrade or a
+  regression in a later Sumi release re-introducing the same class of
+  collision under `^2.1.2`'s allowed range.
 */
 :root {
   --container-sm: 24rem;
