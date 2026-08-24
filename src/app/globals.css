@@ -342,6 +342,65 @@ body {
   }
 }
 
+/*
+  Itinerary desktop split-pane (U7, plan 2026-08-23-002-feat-hybrid-design-
+  fidelity-gaps). Below 1024px the existing continuous-scroll-with-jump-
+  nav-pills timeline must stay pixel-for-pixel unchanged — rather than make
+  that single block viewport-aware via JS matchMedia, both a mobile variant
+  (all days, scroll-to-anchor pills) and a desktop variant (one active day
+  + route map, filtering pills) render simultaneously in the DOM and are
+  shown/hidden purely by breakpoint, the same technique as
+  .mobile-chrome/.web-nav (U2) and .home-hero-pins-mobile/-desktop (Home).
+
+  `.itinerary-shell` only needs a >=1024px override — the element already
+  carries Tailwind's `max-w-lg` class for the mobile default, and this rule
+  (unlayered, so it wins regardless of source order per this file's
+  top-of-file Cascade Layers note) widens it at desktop to fit the list+map
+  columns.
+*/
+.itinerary-mobile-only {
+  display: block;
+}
+
+.itinerary-desktop-split {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .itinerary-shell {
+    max-width: 1120px;
+  }
+
+  .itinerary-mobile-only {
+    display: none;
+  }
+
+  .itinerary-desktop-split {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .itinerary-desktop-list-col {
+    width: 460px;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  .itinerary-desktop-map-col {
+    flex: 1;
+    min-width: 0;
+    height: 70vh;
+    position: sticky;
+    top: 60px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line-1);
+    background: var(--bg-2);
+  }
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;

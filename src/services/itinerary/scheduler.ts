@@ -173,7 +173,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
         adjustmentState: "scheduled",
         startTime: null,
         endTime: null,
-        payload: { category: "eat", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null },
+        payload: { category: "eat", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
       });
     }
   }
@@ -208,7 +208,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
         adjustmentState: "scheduled",
         startTime: null,
         endTime: null,
-        payload: { category: "visit", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null },
+        payload: { category: "visit", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
       });
     }
   }
@@ -230,7 +230,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
       adjustmentState: "unscheduled-today",
       startTime: null,
       endTime: null,
-      payload: { category: d.category, placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null },
+      payload: { category: d.category, placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
     });
   }
 
