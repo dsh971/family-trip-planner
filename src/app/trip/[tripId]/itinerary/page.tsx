@@ -15,6 +15,7 @@ import type { TimelineItemData } from "@sumiui/react";
 import { Utensils, MapPin } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import { getPlaceGradient } from "@/lib/placeGradient";
 
 interface RouteResult {
   fromName: string;
@@ -70,23 +71,35 @@ function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData
     const name = seg.payload?.["placeName"] as string | undefined;
     const category = seg.payload?.["category"] as string | undefined;
     const isDetour = seg.payload?.["worthTheDetour"] === true;
+    const photoReference = seg.payload?.["photoReference"] as string | null | undefined;
     return {
       id: String(seg.id),
       time: seg.startTime ?? undefined,
       marker: "dot-ok",
       title: (
         <span className="flex items-center gap-2">
-          <span
-            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: "var(--bg-2)" }}
-            aria-hidden="true"
-          >
-            {category === "eat" ? (
-              <Utensils size={14} style={{ color: "var(--fg-2)" }} />
-            ) : (
-              <MapPin size={14} style={{ color: "var(--fg-2)" }} />
-            )}
-          </span>
+          {photoReference ? (
+            <img
+              src={`/api/places/photo?ref=${encodeURIComponent(photoReference)}&width=64`}
+              alt=""
+              loading="lazy"
+              className="w-8 h-8 rounded-lg shrink-0"
+              style={{ objectFit: "cover", display: "block" }}
+              onError={(e) => { (e.currentTarget.style.display = "none"); }}
+            />
+          ) : (
+            <span
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: getPlaceGradient(name) }}
+              aria-hidden="true"
+            >
+              {category === "eat" ? (
+                <Utensils size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
+              ) : (
+                <MapPin size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
+              )}
+            </span>
+          )}
           <span>{name ?? "—"}</span>
           <Badge variant={category === "eat" ? "warning" : "info"}>
             {category === "eat" ? "Eat" : "Visit"}

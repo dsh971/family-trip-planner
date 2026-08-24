@@ -15,6 +15,7 @@ import {
 import { Utensils, Landmark } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import { getPlaceGradient } from "@/lib/placeGradient";
 
 interface DecisionRow {
   id: number;
@@ -29,6 +30,7 @@ interface DecisionRow {
   lng: number | null;
   rating: number | null;
   priceLevel: number | null;
+  photoReference: string | null;
 }
 
 interface DecisionsResponse {
@@ -182,6 +184,22 @@ export default function DecisionsPage() {
                 {filtered.map((d) => (
                   <Card key={d.id}>
                     <CardBody className="flex items-start justify-between gap-3">
+                      <div className="shrink-0" style={{ width: "52px", height: "52px" }}>
+                        {d.photoReference ? (
+                          <img
+                            src={`/api/places/photo?ref=${encodeURIComponent(d.photoReference)}&width=104`}
+                            alt=""
+                            loading="lazy"
+                            style={{ width: "52px", height: "52px", objectFit: "cover", borderRadius: "8px", display: "block" }}
+                            onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
+                          />
+                        ) : (
+                          <div
+                            style={{ width: "52px", height: "52px", borderRadius: "8px", background: getPlaceGradient(d.placeGoogleId ?? d.placeName) }}
+                            aria-hidden="true"
+                          />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant={d.category === "eat" ? "warning" : "info"}>

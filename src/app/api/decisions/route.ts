@@ -38,6 +38,7 @@ export async function GET(request: Request) {
       lng: places.lng,
       rating: places.rating,
       priceLevel: places.priceLevel,
+      photoReference: places.photoReference,
     })
     .from(decisions)
     .leftJoin(places, eq(decisions.placeId, places.id))

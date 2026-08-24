@@ -17,6 +17,7 @@ import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import { getPlaceGradient } from "@/lib/placeGradient";
 import type { Neighborhood } from "@/db/schema";
 
 const NeighborhoodMap = dynamic(
@@ -166,8 +167,21 @@ function NeighborhoodCard({
         }
       >
         <CardBody className="space-y-2">
-          {/* Header row: rank + name + safety badge */}
+          {/* Header row: thumbnail + rank + name + safety badge. Neighborhoods
+              have no Google Places photo of their own (unlike individual
+              places), so this is always the deterministic gradient fallback —
+              matching by nb.name (there's no per-neighborhood placeId). */}
           <div className="flex items-center gap-2 flex-wrap">
+            <div
+              className="shrink-0"
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "8px",
+                background: getPlaceGradient(nb.name),
+              }}
+              aria-hidden="true"
+            />
             <span
               className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
               style={{ background: "var(--accent)", color: "var(--fg-on-malachite)" }}

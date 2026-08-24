@@ -19,6 +19,12 @@ export interface DecisionItem {
   worthTheDetour: boolean;
   lat: number | null;
   lng: number | null;
+  // Optional (U4, plan 2026-08-23-002): carried through into each "place"
+  // segment's payload so the itinerary UI can render a thumbnail without a
+  // second lookup. Optional so existing callers/tests that don't supply it
+  // keep working — a missing value just means the card falls back to the
+  // deterministic gradient.
+  photoReference?: string | null;
 }
 
 export interface SlotDefinition {
@@ -167,7 +173,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
         adjustmentState: "scheduled",
         startTime: null,
         endTime: null,
-        payload: { category: "eat", placeName: d.placeName, worthTheDetour: d.worthTheDetour },
+        payload: { category: "eat", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null },
       });
     }
   }
@@ -202,7 +208,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
         adjustmentState: "scheduled",
         startTime: null,
         endTime: null,
-        payload: { category: "visit", placeName: d.placeName, worthTheDetour: d.worthTheDetour },
+        payload: { category: "visit", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null },
       });
     }
   }
@@ -224,7 +230,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
       adjustmentState: "unscheduled-today",
       startTime: null,
       endTime: null,
-      payload: { category: d.category, placeName: d.placeName, worthTheDetour: d.worthTheDetour },
+      payload: { category: d.category, placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null },
     });
   }
 

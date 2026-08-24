@@ -16,6 +16,7 @@ import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import { getPlaceGradient } from "@/lib/placeGradient";
 
 const DiscoveryMap = dynamic(
   () => import("@/components/ui/DiscoveryMap"),
@@ -205,11 +206,6 @@ function PlaceCard({
   onImageClick?: (photoReference: string) => void;
   distanceLabel: string;
 }) {
-  const categoryColor =
-    place.category === "eat"
-      ? "var(--status-warning-bg)"
-      : "var(--status-info-bg)";
-
   const signal = corroborationToSignal(place.corroborationScore);
 
   if (currentDecision === "no") {
@@ -266,7 +262,7 @@ function PlaceCard({
               />
             ) : (
               <div
-                style={{ width: "96px", height: "96px", borderRadius: "8px", background: categoryColor }}
+                style={{ width: "96px", height: "96px", borderRadius: "8px", background: getPlaceGradient(place.placeId ?? place.name) }}
                 aria-hidden="true"
               />
             )}

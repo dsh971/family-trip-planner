@@ -80,6 +80,7 @@ export async function POST(request: Request) {
       placeGoogleId: places.placeId,
       lat: places.lat,
       lng: places.lng,
+      photoReference: places.photoReference,
     })
     .from(decisions)
     .leftJoin(places, eq(decisions.placeId, places.id))
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
       worthTheDetour: d.worthTheDetour ?? false,
       lat: d.lat,
       lng: d.lng,
+      photoReference: d.photoReference,
     }));
 
   const visitDecisions: DecisionItem[] = decisionRows
@@ -110,6 +112,7 @@ export async function POST(request: Request) {
       worthTheDetour: d.worthTheDetour ?? false,
       lat: d.lat,
       lng: d.lng,
+      photoReference: d.photoReference,
     }));
 
   const schedule = distributeDecisions({
