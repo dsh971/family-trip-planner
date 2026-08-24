@@ -287,6 +287,61 @@ body {
   }
 }
 
+/*
+  Decisions split-pane (U6, plan 2026-08-23-002-feat-hybrid-design-fidelity-
+  gaps). Same "static layout, CSS-only breakpoint toggle" technique as
+  .discovery-layout/.neighborhood-layout and .mobile-chrome/.web-nav above,
+  but deliberately NOT reusing those two: this page uses the app's shared
+  >=1024px desktop-nav breakpoint (matching WebNav/.trip-shell-inset) rather
+  than discovery/neighborhood's 768px, and a fixed ~460px list column
+  instead of a percentage split, since the plan calls for a persistent map
+  filling the remaining width rather than a 60/40 share. Below 1024px
+  .decisions-map-col is display:none — the existing mobile scrollable-list
+  layout is otherwise untouched (.decisions-list-col is a plain block
+  wrapper at that width, contributing no layout change of its own).
+
+  .decisions-shell overrides the page's own max-w-lg (Tailwind utility,
+  layered) at desktop so the wider split-pane has room — reusing
+  discovery/page.tsx's max-w-5xl value for consistency. This rule is
+  intentionally unlayered so it reliably wins over the layered max-w-lg
+  utility regardless of source order, same reasoning as .web-nav above.
+*/
+@media (min-width: 1024px) {
+  .decisions-shell {
+    max-width: 64rem;
+  }
+}
+
+.decisions-map-col {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .decisions-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .decisions-list-col {
+    width: 460px;
+    flex-shrink: 0;
+  }
+
+  .decisions-map-col {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    position: sticky;
+    top: 60px;
+    height: 70vh;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line-1);
+    background: var(--bg-2);
+  }
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;
