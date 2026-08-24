@@ -495,12 +495,22 @@ body {
   sections just make the form column taller/scrollable; the panel itself
   needs no knowledge of what's in the form.
 
-  `.tripsetup-form-col` is wider than Decisions/Itinerary's 460px (560px)
-  to give the real 6-section form breathing room the mockup's lean 3-field
-  version didn't need. `.tripsetup-shell` widens the page's own max-w-2xl
-  (Tailwind, layered) the same way `.decisions-shell`/`.itinerary-shell`
-  do, for the same unlayered-wins-over-layered reason documented at this
-  file's top.
+  CORRECTED: the first version of this block used a narrower 72rem shell
+  with a 560px form column, leaving the art panel under half the shell's
+  width and the whole page letterboxed with far more dead margin than any
+  other desktop page in this app — reported directly as "the page is too
+  narrow and the map is tiny." Checked against what's actually already
+  shipped: Discovery/Neighborhoods use `max-w-5xl` (80rem/1280px, wider
+  than this block's old 72rem) with a 60/40 map/list split (their
+  `.discovery-map-col`/`.neighborhood-map-col`, further up this file).
+  `.tripsetup-shell` now matches that same max-w-5xl width for consistency
+  across the app, and `.tripsetup-form-col` goes back to the mockup's own
+  480px (not the 560px this block over-widened it to) — the extra room the
+  6-section form needs comes from the wider shell freeing up space, not
+  from shrinking the art panel's share of it. Net effect: the art panel
+  goes from under half the shell's width to roughly 60%, matching
+  Discovery's ratio and much closer to Web-TripSetup.dc.html's own ~2:1
+  panel-to-form split at 1440px.
 */
 .tripsetup-art-col {
   display: none;
@@ -508,7 +518,7 @@ body {
 
 @media (min-width: 1024px) {
   .tripsetup-shell {
-    max-width: 72rem;
+    max-width: 80rem;
   }
 
   .tripsetup-layout {
@@ -518,7 +528,7 @@ body {
   }
 
   .tripsetup-form-col {
-    width: 560px;
+    width: 480px;
     flex-shrink: 0;
   }
 

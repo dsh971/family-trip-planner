@@ -393,6 +393,7 @@ export default function EditProfilePage() {
           </form>
         </div>
         <TripSetupArt
+          destinationName={destinationName ?? ""}
           hint={destinationName ? `Editing your ${destinationName} trip` : "Editing your trip"}
         />
         </div>

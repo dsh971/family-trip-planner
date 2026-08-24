@@ -602,6 +602,8 @@ export default function ProfilePage() {
         </form>
       </div>
       <TripSetupArt
+        destinationName={destinationName}
+        destinationCountry={destinationCountry}
         hint={
           destinationName.trim()
             ? `Map centers on ${destinationName.trim()} as you fill this in`
