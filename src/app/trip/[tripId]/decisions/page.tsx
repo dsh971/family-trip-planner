@@ -14,6 +14,7 @@ import {
 } from "@sumiui/react";
 import { Utensils, Landmark } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 
 interface DecisionRow {
   id: number;
@@ -85,7 +86,8 @@ export default function DecisionsPage() {
   const filtered = decisions.filter((d) => d.category === activeFilter);
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4 pb-24">
+    <main className="max-w-lg mx-auto p-4 space-y-4 pb-24" style={{ position: "relative" }}>
+      <EditorialBackdrop variant="light" />
       <div className="mb-4">
         <StepProgress currentStep="discover" tripId={params.tripId} />
       </div>

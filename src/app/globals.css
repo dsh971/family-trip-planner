@@ -219,3 +219,95 @@ body {
 .bg-accent {
   color: var(--fg-on-malachite);
 }
+
+/*
+  Editorial backdrop (grid texture + glow/blob) — extracted from Home's
+  hero background (U1, plan 2026-08-23-002-feat-hybrid-design-fidelity-
+  gaps) into reusable classes so five more trip-flow pages can share the
+  same illustrated chrome via src/components/ui/EditorialBackdrop.tsx.
+  Home's own page.tsx is intentionally untouched — its inline-style version
+  is the already-verified source of truth; these classes mirror its exact
+  values for the dark variant rather than having Home consume them, so
+  there is zero risk of regressing it.
+
+  .editorial-bg-grid-dark / .editorial-bg-glow-dark reproduce, unchanged,
+  the repeating-linear-gradient + radial-gradient values from
+  src/app/page.tsx lines 222-240.
+
+  .editorial-bg-grid-light recolors the same repeating-linear-gradient
+  technique onto this app's light-surface tokens instead of inventing new
+  hex values: it uses --line-1, the ink-tinted translucent hairline token
+  already used throughout the app for borders (see .discovery-map-col
+  above, or profile/neighborhoods/decisions pages), so the grid reads as a
+  faint line texture rather than a hard rule.
+
+  .editorial-bg-blob-sage / -tan give the light variant the soft rounded
+  "blob" shapes present in the original Hybrid-Neighborhoods.dc.html /
+  Hybrid-Decisions.dc.html mockups (which Home's own background does not
+  have) — using --malachite-100 (#d7e4dc) and --silk-400 (#dcd2ba), which
+  are exact swatch matches for the mockups' sage/tan blob fills, referenced
+  by token instead of copied as literal hex. No radial glow in the light
+  variant: the mockups' non-Home pages pair grid+blobs, not grid+glow.
+
+  .editorial-backdrop is the positioning wrapper every variant renders
+  inside: absolute, inset:0, z-index:-1. Per CSS2.1's painting order,
+  negative-z-index positioned descendants paint before their parent's
+  non-positioned in-flow content, so this sits behind whatever the
+  consuming page renders next to it without requiring that content to
+  declare its own z-index — the parent just needs `position: relative`
+  (or `fixed`, which equally establishes a containing block) wherever it
+  doesn't already have one.
+*/
+.editorial-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.editorial-bg-grid {
+  position: absolute;
+  inset: 0;
+}
+
+.editorial-bg-grid-dark {
+  opacity: 0.35;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(238, 231, 214, 0.06) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(90deg, rgba(238, 231, 214, 0.06) 0 1px, transparent 1px 72px);
+}
+
+.editorial-bg-grid-light {
+  background-image:
+    repeating-linear-gradient(0deg, var(--line-1) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(90deg, var(--line-1) 0 1px, transparent 1px 72px);
+}
+
+.editorial-bg-glow-dark {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 78% 12%, rgba(79, 132, 102, 0.2) 0%, transparent 55%);
+}
+
+.editorial-bg-blob {
+  position: absolute;
+  border-radius: 44% 56% 60% 40%;
+}
+
+.editorial-bg-blob-sage {
+  left: -60px;
+  top: 40px;
+  width: 220px;
+  height: 240px;
+  background: var(--malachite-100);
+}
+
+.editorial-bg-blob-tan {
+  right: -50px;
+  bottom: -30px;
+  width: 180px;
+  height: 190px;
+  border-radius: 40%;
+  background: var(--silk-400);
+}

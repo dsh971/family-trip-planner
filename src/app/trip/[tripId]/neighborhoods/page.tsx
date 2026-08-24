@@ -16,6 +16,7 @@ import { Building2, Users } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 import type { Neighborhood } from "@/db/schema";
 
 const NeighborhoodMap = dynamic(
@@ -420,7 +421,8 @@ export default function NeighborhoodsPage() {
   const manualTriggerDisabled = research.status === "researching" || cooldown;
 
   return (
-    <main className="p-4 pt-6 pb-20 max-w-5xl mx-auto">
+    <main className="p-4 pt-6 pb-20 max-w-5xl mx-auto" style={{ position: "relative" }}>
+      <EditorialBackdrop variant="light" />
       <div className="mb-4">
         <StepProgress currentStep="area" tripId={tripId} />
       </div>

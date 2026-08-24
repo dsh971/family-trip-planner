@@ -15,6 +15,7 @@ import { CheckCircle2 } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 
 const DiscoveryMap = dynamic(
   () => import("@/components/ui/DiscoveryMap"),
@@ -555,8 +556,9 @@ export default function DiscoveryPage() {
   return (
     <main
       className="max-w-5xl mx-auto p-4 space-y-4"
-      style={{ paddingBottom: addedCount >= 1 ? "140px" : undefined }}
+      style={{ paddingBottom: addedCount >= 1 ? "140px" : undefined, position: "relative" }}
     >
+      <EditorialBackdrop variant="light" />
       <div className="mb-4">
         <StepProgress currentStep="discover" tripId={String(tripId)} />
       </div>

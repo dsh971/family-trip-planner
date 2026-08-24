@@ -12,6 +12,7 @@ import {
 } from "@sumiui/react";
 import { Users, Heart, Clock, CalendarDays, Building2, MapPin } from "lucide-react";
 import { setActiveTripId } from "@/lib/activeTrip";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 
 interface PacingWindow {
   name: string;
@@ -262,6 +263,7 @@ export default function ProfilePage() {
           overflowY: "auto",
         }}
       >
+      <EditorialBackdrop variant="light" />
       <main
         className="max-w-2xl mx-auto w-full px-6 space-y-4"
         style={{ paddingTop: "1rem", paddingBottom: "1.5rem" }}

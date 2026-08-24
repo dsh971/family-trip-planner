@@ -13,6 +13,7 @@ import {
 } from "@sumiui/react";
 import { Users, Heart, Clock, CalendarDays, Building2 } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 
 interface PacingWindow {
   name: string;
@@ -169,8 +170,9 @@ export default function EditProfilePage() {
     <>
         <main
           className="max-w-2xl mx-auto w-full px-6 space-y-4"
-          style={{ paddingTop: "1rem", paddingBottom: "calc(77px + 2rem)" }}
+          style={{ paddingTop: "1rem", paddingBottom: "calc(77px + 2rem)", position: "relative" }}
         >
+          <EditorialBackdrop variant="light" />
           <div className="mb-4">
             <StepProgress currentStep="profile" tripId={tripId} />
           </div>

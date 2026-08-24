@@ -14,6 +14,7 @@ import {
 import type { TimelineItemData } from "@sumiui/react";
 import { Utensils, MapPin } from "lucide-react";
 import StepProgress from "@/components/ui/StepProgress";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 
 interface RouteResult {
   fromName: string;
@@ -281,7 +282,8 @@ export default function ItineraryPage() {
   }
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
+    <main className="max-w-lg mx-auto p-4 space-y-4" style={{ position: "relative" }}>
+      <EditorialBackdrop variant="light" />
       <div className="mb-4">
         <StepProgress currentStep="plan" />
       </div>
