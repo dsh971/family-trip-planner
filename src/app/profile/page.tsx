@@ -252,10 +252,10 @@ export default function ProfilePage() {
 
   return (
     <>
-      {/* No tripId yet on this pre-trip route — WebNav renders with just
-          the wordmark and the Profile tab active, no trip-context chip
-          (its Area/Discover/Plan tabs render disabled until a trip
-          exists, matching StepProgress's own pre-trip gating). */}
+      {/* No tripId yet on this pre-trip route — WebNav renders with the
+          wordmark and "Trip setup" active (its own /profile match), no
+          trip-context chip, and Discover/Saved/Itinerary disabled until a
+          trip exists. */}
       <WebNav />
       {/* Scrollable content area between AppHeader (44px) and CTA bar (77px)
           on mobile; between WebNav (64px) and the CTA bar at >=1024px —

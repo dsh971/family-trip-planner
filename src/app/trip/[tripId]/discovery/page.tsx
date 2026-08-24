@@ -12,7 +12,6 @@ import {
   EmptyState,
 } from "@sumiui/react";
 import { CheckCircle2 } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
@@ -555,9 +554,6 @@ export default function DiscoveryPage() {
       style={{ paddingBottom: addedCount >= 1 ? "140px" : undefined, position: "relative" }}
     >
       <EditorialBackdrop variant="light" />
-      <div className="mb-4">
-        <StepProgress currentStep="discover" tripId={String(tripId)} />
-      </div>
 
       <div>
         {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's

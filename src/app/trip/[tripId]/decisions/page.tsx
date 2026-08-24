@@ -14,7 +14,6 @@ import {
   EmptyState,
 } from "@sumiui/react";
 import { Utensils, Landmark } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 import { getPlaceGradient } from "@/lib/placeGradient";
 
@@ -115,10 +114,6 @@ export default function DecisionsPage() {
   return (
     <main className="decisions-shell max-w-lg mx-auto p-4 space-y-4 pb-24" style={{ position: "relative" }}>
       <EditorialBackdrop variant="light" />
-      <div className="mb-4">
-        <StepProgress currentStep="discover" tripId={params.tripId} />
-      </div>
-
       <div>
         {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
             identical h1 comment — Sumi's unlayered h1 base rule always beats

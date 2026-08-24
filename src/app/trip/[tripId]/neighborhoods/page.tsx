@@ -13,7 +13,6 @@ import {
   EmptyState,
 } from "@sumiui/react";
 import { Building2, Users } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
@@ -437,10 +436,6 @@ export default function NeighborhoodsPage() {
   return (
     <main className="p-4 pt-6 pb-20 max-w-5xl mx-auto" style={{ position: "relative" }}>
       <EditorialBackdrop variant="light" />
-      <div className="mb-4">
-        <StepProgress currentStep="area" tripId={tripId} />
-      </div>
-
       <div className="mb-4 space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Design-fidelity fix (2026-08-23): explicit style, not classNames

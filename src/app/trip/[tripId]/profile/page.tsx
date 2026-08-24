@@ -12,7 +12,6 @@ import {
   Skeleton,
 } from "@sumiui/react";
 import { Users, Heart, Clock, CalendarDays, Building2 } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 
 interface PacingWindow {
@@ -173,10 +172,6 @@ export default function EditProfilePage() {
           style={{ paddingTop: "1rem", paddingBottom: "calc(77px + 2rem)", position: "relative" }}
         >
           <EditorialBackdrop variant="light" />
-          <div className="mb-4">
-            <StepProgress currentStep="profile" tripId={tripId} />
-          </div>
-
           <div className="mb-2">
             {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
                 identical h1 comment — Sumi's unlayered h1 base rule always

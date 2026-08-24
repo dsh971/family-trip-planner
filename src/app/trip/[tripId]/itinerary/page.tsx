@@ -14,7 +14,6 @@ import {
 } from "@sumiui/react";
 import type { TimelineItemData } from "@sumiui/react";
 import { Utensils, MapPin } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 import { getPlaceGradient } from "@/lib/placeGradient";
 import type { RouteMapStop } from "@/components/ui/RouteMap";
@@ -294,9 +293,6 @@ export default function ItineraryPage() {
   if (state === "empty") {
     return (
       <main className="max-w-lg mx-auto p-4 space-y-4">
-        <div className="mb-4">
-          <StepProgress currentStep="plan" tripId={params.tripId} />
-        </div>
         <div>
           {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
               identical h1 comment — Sumi's unlayered h1 base rule always
@@ -334,10 +330,6 @@ export default function ItineraryPage() {
   return (
     <main className="itinerary-shell max-w-lg mx-auto p-4 space-y-4" style={{ position: "relative" }}>
       <EditorialBackdrop variant="light" />
-      <div className="mb-4">
-        <StepProgress currentStep="plan" />
-      </div>
-
       <div>
         {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
             identical h1 comment — Sumi's unlayered h1 base rule always

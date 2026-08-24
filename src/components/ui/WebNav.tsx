@@ -19,20 +19,21 @@ interface TabDef {
 }
 
 // CORRECTED (this unit's first build got this wrong): the four non-Home
-// tabs were originally borrowed from StepProgress's Profile/Area/Discover/
-// Plan naming — a *different*, 4-step trip-progress breadcrumb model, not
-// WebNav's actual nav structure. Checking the recovered WebNav.dc.html
-// mockup directly (its own `data-dc-script` props declare
+// tabs were originally borrowed from a since-deleted StepProgress
+// component's Profile/Area/Discover/Plan naming — a *different*, 4-step
+// trip-progress breadcrumb model, not WebNav's actual nav structure.
+// Checking the recovered WebNav.dc.html mockup directly (its own
+// `data-dc-script` props declare
 // options:["home","trip","discover","saved","itinerary"]) shows a 5-tab
 // model that doesn't line up 1:1: no separate "Area" tab exists at all —
 // Web-Neighborhoods.dc.html's own `active="trip"` confirms neighborhood
 // picking lights up "Trip setup", the same tab as /profile — and Discovery
 // and Decisions are two SEPARATE tabs ("Discover" / "Saved"), not one
 // merged tab, per Web-Discovery.dc.html's `active="discover"` vs
-// Web-Decisions.dc.html's `active="saved"`. StepProgress's own labels are
-// unrelated and untouched — it's a different component modeling a
-// different concept (linear progress, not top-level nav) and its
-// Profile/Area/Discover/Plan breadcrumb stays as-is.
+// Web-Decisions.dc.html's `active="saved"`. StepProgress itself was
+// removed from every page (not just relabeled) once this correction made
+// clear it had no basis in any mockup and was fully redundant with what
+// WebNav/BottomNav's own active-tab highlighting already provide.
 const TABS: TabDef[] = [
   { id: "home", label: "Home", matches: ["/"], exact: true },
   { id: "trip", label: "Trip setup", matches: ["/profile", "/neighborhoods"] },
