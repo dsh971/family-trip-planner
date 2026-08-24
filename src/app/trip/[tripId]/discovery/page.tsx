@@ -274,9 +274,22 @@ function PlaceCard({
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col gap-1">
             <div className="flex items-start gap-2">
+              {/* Design-fidelity fix (2026-08-23): typography moved to inline
+                  style — see neighborhoods/page.tsx's h1 comment, same issue
+                  applies to h3 (Sumi's unlayered h3 rule beats text-sm/
+                  font-semibold/leading-snug). flex-1/min-w-0 are layout, not
+                  typography, and aren't touched by Sumi's h3 rule, so they
+                  stay as classes. */}
               <h3
-                className="text-sm font-semibold flex-1 min-w-0 leading-snug"
-                style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+                className="flex-1 min-w-0"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: "0.875rem",
+                  fontWeight: 600,
+                  lineHeight: 1.375,
+                  color: "var(--fg-1)",
+                  margin: 0,
+                }}
               >
                 {place.name}
               </h3>
@@ -549,9 +562,19 @@ export default function DiscoveryPage() {
       </div>
 
       <div>
+        {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+            identical h1 comment — Sumi's unlayered h1 base rule always beats
+            the text-2xl/font-bold/tracking-tight utility classes. */}
         <h1
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.5rem",
+            fontWeight: 700,
+            letterSpacing: "-0.025em",
+            lineHeight: 1.2,
+            color: "var(--fg-1)",
+            margin: 0,
+          }}
         >
           Discover Places
         </h1>

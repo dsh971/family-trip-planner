@@ -42,9 +42,19 @@ function SectionHeader({
         {num}
       </span>
       <span style={{ color: "var(--accent)" }}>{icon}</span>
+      {/* Design-fidelity fix (2026-08-23): see src/app/profile/page.tsx's
+          identical SectionHeader h2 comment — Sumi's unlayered h2 base rule
+          always beats text-base/font-semibold/tracking-tight. */}
       <h2
-        className="text-base font-semibold tracking-tight"
-        style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "1rem",
+          fontWeight: 600,
+          letterSpacing: "-0.025em",
+          lineHeight: 1.375,
+          color: "var(--fg-1)",
+          margin: 0,
+        }}
       >
         {title}
       </h2>
@@ -166,9 +176,19 @@ export default function EditProfilePage() {
           </div>
 
           <div className="mb-2">
+            {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+                identical h1 comment — Sumi's unlayered h1 base rule always
+                beats text-2xl/font-bold/tracking-tight utility classes. */}
             <h1
-              className="text-2xl font-bold tracking-tight"
-              style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                letterSpacing: "-0.025em",
+                lineHeight: 1.2,
+                color: "var(--fg-1)",
+                margin: 0,
+              }}
             >
               Edit Trip Profile
             </h1>
@@ -370,10 +390,12 @@ export default function EditProfilePage() {
           </form>
         </main>
 
-      {/* Fixed CTA bar — sits above the 4rem bottom nav */}
+      {/* Fixed CTA bar — sits above the 4rem bottom nav. Design-fidelity fix
+          (2026-08-23): see AppHeader.tsx's identical comment — right-0
+          produces no CSS rule anywhere in this project. */}
       <div
-        className="fixed left-0 right-0 p-4 z-50"
-        style={{ bottom: "4rem", background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
+        className="fixed left-0 p-4 z-50"
+        style={{ right: 0, bottom: "4rem", background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
       >
         <div className="max-w-2xl mx-auto flex gap-3">
           <Button

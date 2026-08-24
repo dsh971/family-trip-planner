@@ -91,9 +91,19 @@ export default function DecisionsPage() {
       </div>
 
       <div>
+        {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+            identical h1 comment — Sumi's unlayered h1 base rule always beats
+            the text-2xl/font-bold/tracking-tight utility classes. */}
         <h1
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.5rem",
+            fontWeight: 700,
+            letterSpacing: "-0.025em",
+            lineHeight: 1.2,
+            color: "var(--fg-1)",
+            margin: 0,
+          }}
         >
           Your picks
         </h1>

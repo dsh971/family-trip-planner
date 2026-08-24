@@ -427,9 +427,23 @@ export default function NeighborhoodsPage() {
 
       <div className="mb-4 space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
+          {/* Design-fidelity fix (2026-08-23): explicit style, not classNames
+              — Sumi's own base CSS sets h1's font-size/weight/tracking/
+              line-height/margin unconditionally and UNLAYERED, which always
+              beats layered utility classes (CSS Cascade Layers spec)
+              regardless of specificity. text-2xl/font-bold/tracking-tight
+              silently did nothing here; verified via computed styles this
+              was rendering at Sumi's default ~48px, not the intended 24px. */}
           <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.2,
+              color: "var(--fg-1)",
+              margin: 0,
+            }}
           >
             Where do you want to explore?
           </h1>

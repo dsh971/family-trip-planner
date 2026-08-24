@@ -11,6 +11,7 @@ import {
   DatePicker,
 } from "@sumiui/react";
 import { Users, Heart, Clock, CalendarDays, Building2, MapPin } from "lucide-react";
+import { setActiveTripId } from "@/lib/activeTrip";
 
 interface PacingWindow {
   name: string;
@@ -55,9 +56,24 @@ function SectionHeader({
         {num}
       </span>
       <span style={{ color: "var(--accent)" }}>{icon}</span>
+      {/* Design-fidelity fix (2026-08-23): Sumi's own base CSS sets h2's
+          font-size/weight/tracking/line-height/margin unconditionally and
+          UNLAYERED, which always beats layered utility classes (CSS Cascade
+          Layers spec) regardless of specificity — text-base/font-semibold/
+          tracking-tight silently did nothing here. Verified via computed
+          styles this was rendering at Sumi's default 38px ("Destination"
+          reading like a page headline), not the intended 16px section
+          label. Explicit inline style is the reliable override. */}
       <h2
-        className="text-base font-semibold tracking-tight"
-        style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "1rem",
+          fontWeight: 600,
+          letterSpacing: "-0.025em",
+          lineHeight: 1.375,
+          color: "var(--fg-1)",
+          margin: 0,
+        }}
       >
         {title}
       </h2>
@@ -91,6 +107,25 @@ export default function ProfilePage() {
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Design-fidelity fix (2026-08-22): Home's destination search hands off
+  // the typed/selected destination via query params instead of making the
+  // traveler retype it (src/app/page.tsx's handleStartNewTrip). Read once on
+  // mount — window.location.search isn't available during SSR, and
+  // re-reading on every render would fight the traveler's own subsequent
+  // edits to the field.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const name = params.get("destinationName");
+    const country = params.get("destinationCountry");
+    const id = params.get("destinationId");
+    if (name) setDestinationName(name);
+    if (country) setDestinationCountry(country);
+    if (id) {
+      const parsed = Number(id);
+      if (Number.isInteger(parsed) && parsed > 0) setSelectedDestinationId(parsed);
+    }
+  }, []);
 
   // Debounced search-as-you-type against GET /api/destinations?q= (U3, plan
   // 2026-08-20-011). Skips the query entirely once a suggestion has been
@@ -201,6 +236,10 @@ export default function ProfilePage() {
       }
 
       const trip = await tripRes.json() as { id: number };
+      // Design-fidelity fix (2026-08-22): lets Home recognize a returning
+      // traveler on a later visit (src/app/page.tsx) — see that file for why
+      // localStorage is the only client-side option here (no auth/session).
+      setActiveTripId(trip.id);
       router.push(`/trip/${trip.id}/neighborhoods`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error");
@@ -231,9 +270,19 @@ export default function ProfilePage() {
           <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--accent)" }}>
             Trip Details
           </p>
+          {/* Design-fidelity fix (2026-08-23): see SectionHeader's identical
+              h2 comment below — Sumi's unlayered h1 base rule always beats
+              text-3xl/font-bold/tracking-tight utility classes. */}
           <h1
-            className="text-3xl font-bold tracking-tight"
-            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.875rem",
+              fontWeight: 700,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.2,
+              color: "var(--fg-1)",
+              margin: 0,
+            }}
           >
             Set Up Your Trip
           </h1>
@@ -541,10 +590,12 @@ export default function ProfilePage() {
       </main>
       </div>
 
-      {/* Fixed CTA bar (77px tall: p-4 × 2 + Button lg 45px) */}
+      {/* Fixed CTA bar (77px tall: p-4 × 2 + Button lg 45px). Design-fidelity
+          fix (2026-08-23): see AppHeader.tsx's identical comment — right-0
+          produces no CSS rule anywhere in this project. */}
       <div
-        className="fixed bottom-0 left-0 right-0 p-4 z-40"
-        style={{ background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
+        className="fixed bottom-0 left-0 p-4 z-40"
+        style={{ right: 0, background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
       >
         <div className="max-w-2xl mx-auto">
           <Button

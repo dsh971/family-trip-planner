@@ -1,24 +1,40 @@
 /*
   Sumi UI bundles a complete Tailwind v4 instance in its CSS (imported via
-  `@sumiui/react/styles` in layout.tsx). We use @source here so that
-  Tailwind's already-loaded engine also scans our own source files for
-  utility classes — without re-importing the full Tailwind bundle (which
-  would create a second @layer theme block and conflict with Sumi's tokens).
+  `@sumiui/react/styles` in layout.tsx) — but that bundle is a fully
+  pre-compiled, static CSS artifact from Sumi's OWN build (it scanned
+  Sumi's own component source, not this project's). @source alone, without
+  a Tailwind entry point of its own, does not actually generate anything
+  from this project's `.tsx` files.
 
-  IMPORTANT — @source scanning limitation:
-  Standard Tailwind scale classes (h-11, pt-11, pb-28, etc.) are reliably
-  detected because they appear as literal strings in scanned files.
-  Arbitrary-value classes like pt-[3.5rem] or pb-[calc(...)] are NOT reliably
-  generated in this setup — they silently produce no CSS.
+  CORRECTED 2026-08-23 (previous version of this comment was wrong): the
+  documentation here used to claim "standard scale classes (h-11, pt-11,
+  pb-28, etc.) are reliably detected" and only arbitrary-value classes
+  (pt-[3.5rem]) were unreliable. That was never actually true — verified
+  directly against the compiled output that ~40 completely standard classes
+  used only by this project (h-11, h-16, right-0, font-bold, text-lg,
+  tracking-tight, max-w-md, space-y-4, and more) produced ZERO CSS, because
+  @source scanning was never actually wired to a real generation pass. Every
+  class that happened to "work" only did so because Sumi's own components
+  coincidentally already used that same class name in their own build.
 
-  For layout-critical header/nav clearance, always use one of:
-  1. Spacer div (preferred for pages outside the trip layout):
-       <div className="h-11" aria-hidden="true" />
-  2. Standard scale equivalent: pt-14 (3.5rem), pt-11 (2.75rem), etc.
-  3. Inline style as last resort: style={{ paddingTop: "2.75rem" }}
-  Never use arbitrary values like pt-[2.75rem] for structural layout.
+  THE FIX: importing tailwindcss's theme + utilities layers directly gives
+  @source a real Tailwind entry point to generate from. Layered imports
+  (not a bare `@import "tailwindcss"`) avoid re-importing preflight/reset,
+  which Sumi's bundle already provides — verified no visual regression or
+  token conflict (Sumi's own --accent/--fg-1/etc. custom properties are
+  untouched; this only adds Tailwind's OWN default theme variables like
+  --spacing/--font-weight-bold/--text-lg that Sumi's bundle didn't define
+  under those names, which is exactly what was missing).
+
+  Several files still carry inline-style workarounds for specific `right-0`
+  usages written before this fix (AppHeader.tsx, BottomNav.tsx, two CTA
+  bars) — those are still correct and harmless, just no longer strictly
+  necessary. Left as-is rather than churned back, but new code can now use
+  standard Tailwind utility classes normally.
 */
 @source "../**/*.{ts,tsx}";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
 
 body {
   background: var(--bg-0);
@@ -84,6 +100,103 @@ body {
 
   .neighborhood-mobile-toggle {
     display: none;
+  }
+}
+
+/*
+  Home hero (design-fidelity fix, 2026-08-23). Ported from the actual
+  Web-Home.dc.html desktop mockup (recovered from the published design
+  artifact after the local scratchpad copy was cleared) — NOT a split
+  text/art-panel layout as first attempted. The real design keeps the same
+  full-bleed dark gradient + grid + pins treatment as the mobile mockup at
+  every width; only the text scale and vertical arrangement change: headline
+  anchored near the top, description/CTA anchored near the bottom, huge
+  serif type (112-128px in the 1440px mockup) instead of vertically centered
+  content in a narrow column. justify-content: flex-end (mobile, matches
+  Hybrid-Home.dc.html) -> space-between (desktop) achieves that top/bottom
+  split responsively without needing separate pixel-positioned layouts per
+  breakpoint.
+
+  min-height lives here (not the min-h-screen Tailwind class) for the same
+  reason as .discovery-layout/.neighborhood-layout above: verified against
+  this project's actual compiled CSS that min-h-screen generates no rule at
+  all here — the documented @source limitation covers keyword-based sizing
+  utilities, not just arbitrary values.
+*/
+.home-hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.home-hero-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px 0;
+}
+
+.home-hero-content {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 24px 32px;
+}
+
+/* Fluid headline sizing — mobile mockup uses 48-56px, the 1440px desktop
+   mockup uses 112-128px. clamp() interpolates between them by viewport
+   width instead of needing separate breakpoint-specific font-size rules
+   (which inline styles can't express — CSS custom properties/clamp() can). */
+.home-hero-headline {
+  font-size: clamp(3rem, 2rem + 6vw, 8rem);
+}
+
+/* Two separate pin datasets (mobile vs desktop pixel positions ported from
+   their respective mockups — see src/app/page.tsx) toggled by breakpoint,
+   same show/hide technique as .neighborhood-mobile-toggle below. */
+.home-hero-pins-desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .home-hero-header {
+    padding: 32px 48px 0;
+  }
+
+  /* Design-fidelity follow-up (2026-08-23): the mockup's literal top/bottom
+     split (headline pinned near the top, description+search+button pinned
+     near the bottom, ~600px of empty gradient between them on a tall
+     viewport) read as broken once actually rendered — per direct feedback,
+     the whole block now reads as one cohesive group, vertically centered,
+     matching how it already read fine on mobile's grouped bottom-anchored
+     layout instead of literally reproducing the mockup's wide gap. */
+  .home-hero-content {
+    justify-content: center;
+    padding: 0 48px;
+  }
+
+  .home-hero-headline-block {
+    max-width: 900px;
+    margin-bottom: 40px;
+  }
+
+  .home-hero-bottom-block {
+    max-width: 480px;
+  }
+
+  .home-hero-pins-mobile {
+    display: none;
+  }
+
+  .home-hero-pins-desktop {
+    display: block;
   }
 }
 

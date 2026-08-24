@@ -107,6 +107,9 @@ describe("GET /api/trips/[tripId]", () => {
     expect(json.id).toBe(trip.id);
     expect(json.hotelName).toBe("Park Hyatt Tokyo");
     expect(json.lodgingAnchorLat).toBe(35.6896);
+    // Design-fidelity fix (2026-08-22): exposed so Home can show a
+    // returning traveler's trip name without a second round-trip.
+    expect(json.destinationName).toBe("Tokyo");
     expect(json.familyProfile).toBeDefined();
     const fp = json.familyProfile as Record<string, unknown>;
     expect(fp.adultCount).toBe(2);

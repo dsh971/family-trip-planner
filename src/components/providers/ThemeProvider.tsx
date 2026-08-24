@@ -22,7 +22,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
-    const stored = localStorage.getItem("theme") as Theme | null;
+    // Design-fidelity fix (2026-08-22): this read had no guard, so it would
+    // throw uncaught in any real browser context where localStorage access
+    // fails (private browsing, storage disabled by policy, quota) — the app
+    // would crash on mount instead of just defaulting to light. Discovered
+    // via AppHeader.test.tsx, the first test to ever render this provider.
+    let stored: Theme | null = null;
+    try {
+      stored = localStorage.getItem("theme") as Theme | null;
+    } catch {
+      // Fall through to the light-theme default.
+    }
     const resolved = stored === "dark" ? "dark" : "light";
     setTheme(resolved);
     document.documentElement.setAttribute("data-theme", resolved);
@@ -31,7 +41,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   function toggle() {
     setTheme((prev) => {
       const next = prev === "light" ? "dark" : "light";
-      localStorage.setItem("theme", next);
+      try {
+        localStorage.setItem("theme", next);
+      } catch {
+        // Non-essential — the toggle still applies for this render, just
+        // won't persist across a reload.
+      }
       document.documentElement.setAttribute("data-theme", next);
       return next;
     });

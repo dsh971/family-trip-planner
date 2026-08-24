@@ -110,10 +110,14 @@ function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData
 
   // route
   const route = seg.payload as unknown as RouteResult | null;
+  // Design-fidelity fix (2026-08-23): walkingMinutes is a raw computed
+  // float (distance / walking speed) — was rendering as e.g.
+  // "3.8216666666666668 min walk" verbatim. Round for display only; the
+  // underlying value is unaffected for any calculation.
   const label =
     route?.walkingMinutes != null ? (
       <span>
-        <span style={{ fontFamily: "var(--font-mono)" }}>{route.walkingMinutes}</span> min walk
+        <span style={{ fontFamily: "var(--font-mono)" }}>{Math.round(route.walkingMinutes)}</span> min walk
       </span>
     ) : (
       "Route"
@@ -158,7 +162,7 @@ function DaySection({ day }: { day: DayResponse }) {
         </div>
         <div className="flex items-center gap-3 text-xs" style={{ color: "var(--fg-3)", fontFamily: "var(--font-mono)" }}>
           {placeCount > 0 && <span>{placeCount} place{placeCount !== 1 ? "s" : ""}</span>}
-          {walkMinutes > 0 && <span>{walkMinutes} min walk</span>}
+          {walkMinutes > 0 && <span>{Math.round(walkMinutes)} min walk</span>}
         </div>
       </div>
       {hasPlaces ? (
@@ -243,9 +247,19 @@ export default function ItineraryPage() {
           <StepProgress currentStep="plan" tripId={params.tripId} />
         </div>
         <div>
+          {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+              identical h1 comment — Sumi's unlayered h1 base rule always
+              beats the text-2xl/font-bold/tracking-tight utility classes. */}
           <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.2,
+              color: "var(--fg-1)",
+              margin: 0,
+            }}
           >
             Your schedule
           </h1>
@@ -273,9 +287,19 @@ export default function ItineraryPage() {
       </div>
 
       <div>
+        {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+            identical h1 comment — Sumi's unlayered h1 base rule always
+            beats the text-2xl/font-bold/tracking-tight utility classes. */}
         <h1
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.5rem",
+            fontWeight: 700,
+            letterSpacing: "-0.025em",
+            lineHeight: 1.2,
+            color: "var(--fg-1)",
+            margin: 0,
+          }}
         >
           Your schedule
         </h1>
