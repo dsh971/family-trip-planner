@@ -20,11 +20,27 @@
   THE FIX: importing tailwindcss's theme + utilities layers directly gives
   @source a real Tailwind entry point to generate from. Layered imports
   (not a bare `@import "tailwindcss"`) avoid re-importing preflight/reset,
-  which Sumi's bundle already provides — verified no visual regression or
-  token conflict (Sumi's own --accent/--fg-1/etc. custom properties are
-  untouched; this only adds Tailwind's OWN default theme variables like
-  --spacing/--font-weight-bold/--text-lg that Sumi's bundle didn't define
-  under those names, which is exactly what was missing).
+  which Sumi's bundle already provides.
+
+  CORRECTED AGAIN 2026-08-24: the claim two paragraphs up ("verified no
+  token conflict") was also wrong, for a third and different reason than
+  either bug above — not missing generation, not the heading cascade, but
+  a genuine same-name collision between two DIFFERENT Sumi-internal token
+  sets. Sumi's compiled bundle contains its own re-declaration of
+  Tailwind's default --container-* spacing scale (--container-2xl: 42rem,
+  used by max-w-2xl etc.) AND a separate, later-declared, completely
+  unrelated --container-* breakpoint-width block for Sumi's own responsive
+  system (--container-2xl: 1440px). Both are unlayered and live in Sumi's
+  own bundle (not introduced by this file's @import above), so ordinary
+  cascade rules apply and Sumi's own later declaration wins — meaning
+  every max-w-{sm,md,lg,xl,2xl} utility in this app was silently resolving
+  to a full breakpoint width (e.g. 1440px) instead of Tailwind's intended
+  rem-based content width (e.g. 42rem/672px). Verified against the
+  compiled stylesheet: two conflicting `--container-2xl` declarations,
+  Sumi's own 1440px one last. Fixed below by redeclaring the five actually
+  co-opted sizes at :root — same unlayered position as Sumi's own
+  colliding block, so ordinary last-one-wins cascade order (this file
+  loads after Sumi's bundle) resolves it correctly, no !important needed.
 
   Several files still carry inline-style workarounds for specific `right-0`
   usages written before this fix (AppHeader.tsx, BottomNav.tsx, two CTA
@@ -35,6 +51,22 @@
 @source "../**/*.{ts,tsx}";
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities" layer(utilities);
+
+/*
+  Restores Tailwind's intended --container-* content-width scale for the
+  five sizes this app actually uses (max-w-sm/md/lg/xl/2xl) — see the
+  "CORRECTED AGAIN" note above for why these need restating here rather
+  than trusting the layered @import above. --container-5xl/-7xl are NOT
+  redeclared: verified only sm/md/lg/xl/2xl collide with Sumi's breakpoint
+  block, so touching sizes that were never broken would be needless churn.
+*/
+:root {
+  --container-sm: 24rem;
+  --container-md: 28rem;
+  --container-lg: 32rem;
+  --container-xl: 36rem;
+  --container-2xl: 42rem;
+}
 
 body {
   background: var(--bg-0);
