@@ -13,6 +13,7 @@ import {
 import { Users, Heart, Clock, CalendarDays, Building2, MapPin } from "lucide-react";
 import { setActiveTripId } from "@/lib/activeTrip";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import { WebNav } from "@/components/ui/WebNav";
 
 interface PacingWindow {
   name: string;
@@ -251,12 +252,19 @@ export default function ProfilePage() {
 
   return (
     <>
-      {/* Scrollable content area between AppHeader (44px) and CTA bar (77px).
-          Inline styles for structural layout — see globals.css for rationale. */}
+      {/* No tripId yet on this pre-trip route — WebNav renders with just
+          the wordmark and the Profile tab active, no trip-context chip
+          (its Area/Discover/Plan tabs render disabled until a trip
+          exists, matching StepProgress's own pre-trip gating). */}
+      <WebNav />
+      {/* Scrollable content area between AppHeader (44px) and CTA bar (77px)
+          on mobile; between WebNav (64px) and the CTA bar at >=1024px —
+          see `.profile-shell-inset` in globals.css. Inline styles for the
+          rest of the structural layout — see globals.css for rationale. */}
       <div
+        className="profile-shell-inset"
         style={{
           position: "fixed",
-          top: "2.75rem",
           bottom: "77px",
           left: 0,
           right: 0,

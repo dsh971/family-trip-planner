@@ -392,12 +392,15 @@ export default function EditProfilePage() {
           </form>
         </main>
 
-      {/* Fixed CTA bar — sits above the 4rem bottom nav. Design-fidelity fix
+      {/* Fixed CTA bar — sits above the 4rem bottom nav on mobile; flush
+          with the viewport bottom at >=1024px, where BottomNav is hidden
+          and WebNav (top-only) doesn't occupy any bottom space — see
+          `.trip-cta-inset` in globals.css. Design-fidelity fix
           (2026-08-23): see AppHeader.tsx's identical comment — right-0
           produces no CSS rule anywhere in this project. */}
       <div
-        className="fixed left-0 p-4 z-50"
-        style={{ right: 0, bottom: "4rem", background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
+        className="trip-cta-inset fixed left-0 p-4 z-50"
+        style={{ right: 0, background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
       >
         <div className="max-w-2xl mx-auto flex gap-3">
           <Button

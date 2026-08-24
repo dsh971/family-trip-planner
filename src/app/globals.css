@@ -200,6 +200,93 @@ body {
   }
 }
 
+/*
+  Desktop nav shell (U2, plan 2026-08-23-002-feat-hybrid-design-fidelity-
+  gaps). AppHeader (44px top bar) and BottomNav (64px bottom tab bar) are
+  mobile-only chrome; WebNav (src/components/ui/WebNav.tsx) is the
+  persistent >=1024px top nav that replaces both. Same explicit
+  show/hide-by-breakpoint technique as .home-hero-pins-mobile/-desktop
+  above — one min-width media query, no JS viewport detection.
+
+  `.mobile-chrome` only gets a rule inside the media query (force-hidden at
+  desktop); below 1024px each component's own layered Tailwind `flex`
+  utility already governs its display, so no default-state rule is needed
+  or wanted here. `.web-nav` needs an explicit default (display: none)
+  since without one its own `flex` class would show it on mobile too.
+
+  These rules are intentionally unlayered (outside any @layer block) so
+  they reliably win over each component's layered Tailwind display utility
+  regardless of source order — see this file's top-of-file comment on
+  Tailwind's CSS Cascade Layers / @source setup in this project.
+*/
+.web-nav {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .mobile-chrome {
+    display: none;
+  }
+
+  .web-nav {
+    display: flex;
+  }
+}
+
+/*
+  Trip-shell scroll region insets (U2, plan 2026-08-23-002). Mobile:
+  content sits between AppHeader (44px) and BottomNav (64px), matching
+  those components' actual heights (src/app/trip/[tripId]/layout.tsx).
+  Desktop (>=1024px): AppHeader/BottomNav are hidden (`.mobile-chrome`
+  above) and WebNav — a taller 64px bar with no bottom counterpart — takes
+  over, so the inset flips to 64px top / 0 bottom.
+*/
+.trip-shell-inset {
+  top: 2.75rem;
+  bottom: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .trip-shell-inset {
+    top: 4rem;
+    bottom: 0;
+  }
+}
+
+/*
+  src/app/profile/page.tsx's own fixed scroll region (pre-trip — outside
+  trip/[tripId]/layout.tsx, so it mounts its own WebNav directly with no
+  tripId, which renders the wordmark + Profile tab with no trip-context
+  chip). Its top inset assumes AppHeader's 44px on mobile; at >=1024px
+  AppHeader hides and WebNav takes over at the same 64px height used
+  everywhere else WebNav appears.
+*/
+.profile-shell-inset {
+  top: 2.75rem;
+}
+
+@media (min-width: 1024px) {
+  .profile-shell-inset {
+    top: 4rem;
+  }
+}
+
+/*
+  src/app/trip/[tripId]/profile/page.tsx's fixed CTA bar sits 4rem above
+  the bottom edge on mobile to clear BottomNav. At >=1024px BottomNav is
+  hidden and WebNav doesn't occupy any bottom space, so the CTA bar can sit
+  flush with the viewport bottom.
+*/
+.trip-cta-inset {
+  bottom: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .trip-cta-inset {
+    bottom: 0;
+  }
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;

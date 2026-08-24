@@ -23,7 +23,10 @@ export function AppHeader() {
     // silently collapsing to its content's shrink-to-fit width instead of
     // spanning the viewport on every non-Home page. Inline style per this
     // project's own documented fallback for exactly this failure mode.
-    <header className="fixed top-0 left-0 z-50 h-11 flex items-center justify-between px-4 border-b"
+    // Desktop nav shell (U2, 2026-08-23-002): hidden at >=1024px via the
+    // `mobile-chrome` class (globals.css) — WebNav takes over at that
+    // breakpoint. Still returns null on Home above, unrelated to this.
+    <header className="mobile-chrome fixed top-0 left-0 z-50 h-11 flex items-center justify-between px-4 border-b"
       style={{ right: 0, background: "var(--bg-card, var(--bg-1))", borderColor: "var(--line-1)" }}
     >
       <span
