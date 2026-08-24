@@ -83,6 +83,42 @@
   --container-2xl: 42rem;
 }
 
+/*
+  Viridian accent palette (rebrand plan, docs/plans/2026-08-23-001-feat-
+  viridian-rebrand-plan.md, U2). Overrides only the four top-level semantic
+  accent tokens — --malachite-*, its --jade-* alias, and --status-success
+  (which currently reuses malachite) are deliberately left untouched, so
+  badges/borders/status colors that key off the raw scale don't shift with
+  the brand accent. Declared after Sumi's own @layer theme import (same
+  reasoning as the --container-* block above), so these unlayered
+  declarations win without !important.
+
+  Light-mode base (#40826D, traditional pigment Viridian, H160.9/S34/L38)
+  is the user-specified hex. --accent-soft/-strong/-hover are derived by
+  applying the same HSL-lightness deltas Sumi's own malachite-100/-800
+  spread has relative to malachite-700 (the token --accent currently
+  aliases in light mode) — soft +~65pp L for a light wash, strong -~5pp L
+  for a pressed/emphasis state, hover roughly the midpoint. Dark-mode base
+  reuses the same hue at +20pp L (mirroring malachite-700->malachite-400's
+  light/dark relationship), with soft/strong inverted in direction (dark
+  mode's "soft" is a low-contrast dark tint, not a light wash; "strong"
+  lightens further rather than darkening, matching how emphasis reads
+  against a dark background).
+*/
+:root {
+  --accent: #40826d;
+  --accent-soft: #edf2f1;
+  --accent-strong: #36725f;
+  --accent-hover: #397763;
+}
+
+:root[data-theme="dark"] {
+  --accent: #76b29f;
+  --accent-soft: #27493e;
+  --accent-strong: #95c6b6;
+  --accent-hover: #84bdab;
+}
+
 body {
   background: var(--bg-0);
   color: var(--fg-1);
