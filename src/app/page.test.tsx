@@ -22,9 +22,10 @@ vi.mock("next/navigation", () => ({
 // of what's actually stored. Mocking the module is the only way to
 // exercise the hasTrip branch.
 const getActiveTripIdMock = vi.fn<() => string | null>();
+const clearActiveTripIdMock = vi.fn();
 vi.mock("@/lib/activeTrip", () => ({
   getActiveTripId: () => getActiveTripIdMock(),
-  clearActiveTripId: vi.fn(),
+  clearActiveTripId: () => clearActiveTripIdMock(),
 }));
 
 function mockFetch(handlers: {
@@ -50,6 +51,7 @@ function mockFetch(handlers: {
 beforeEach(() => {
   pushMock.mockClear();
   getActiveTripIdMock.mockReset();
+  clearActiveTripIdMock.mockClear();
 });
 
 describe("Home", () => {
@@ -89,6 +91,36 @@ describe("Home", () => {
 
     await user.click(screen.getByText("Continue planning"));
     expect(pushMock).toHaveBeenCalledWith("/trip/42/discovery");
+  });
+
+  it("hasTrip: 'Not planning this trip?' clears the active-trip id and swaps to the noTrip state without a full navigation (U1)", async () => {
+    const user = userEvent.setup();
+    getActiveTripIdMock.mockReturnValue("42");
+    global.fetch = mockFetch({
+      trip: { id: 42, status: "Discovery", destinationName: "Lisbon", startDate: "2026-09-01" },
+    }) as unknown as typeof fetch;
+
+    render(<Home />);
+    await waitFor(() => expect(screen.getByText("Lisbon")).toBeTruthy());
+
+    await user.click(screen.getByText("Not planning this trip? Start a new one."));
+
+    // localStorage was genuinely cleared (via the real clearActiveTripId
+    // export), not just local component state reset.
+    expect(clearActiveTripIdMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByText("Where to?")).toBeTruthy());
+    expect(screen.queryByText("Lisbon")).toBeNull();
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("noTrip: does not render the reset action (nothing to clear)", async () => {
+    getActiveTripIdMock.mockReturnValue(null);
+    global.fetch = mockFetch({}) as unknown as typeof fetch;
+
+    render(<Home />);
+
+    await waitFor(() => expect(screen.getByText("Where to?")).toBeTruthy());
+    expect(screen.queryByText("Not planning this trip? Start a new one.")).toBeNull();
   });
 
   it("falls back to the noTrip state when the stored trip id no longer resolves", async () => {

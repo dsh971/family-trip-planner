@@ -187,6 +187,15 @@ export default function Home() {
     };
   }, [destinationName, selectedDestination]);
 
+  // Reset affordance (plan 2026-08-24-001, U1): the only in-app way to
+  // abandon an active trip and start over. Non-destructive — clears only
+  // the local active-trip pointer, so the trip's data stays reachable at
+  // its own URL — hence no confirmation dialog before firing.
+  const handleResetTrip = useCallback(() => {
+    clearActiveTripId();
+    setActiveTrip(null);
+  }, []);
+
   const handleStartNewTrip = useCallback(() => {
     // Carries whatever the traveler typed/picked into /profile's own
     // destination field instead of making them retype it — the search box
@@ -343,6 +352,24 @@ export default function Home() {
               >
                 Continue planning
               </Button>
+              <button
+                type="button"
+                onClick={handleResetTrip}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  marginTop: "12px",
+                  padding: 0,
+                  textAlign: "center",
+                  fontSize: "0.8125rem",
+                  color: "var(--ink-300)",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Not planning this trip? Start a new one.
+              </button>
             </div>
           </>
         ) : (
