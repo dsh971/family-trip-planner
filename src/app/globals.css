@@ -1,24 +1,123 @@
 /*
   Sumi UI bundles a complete Tailwind v4 instance in its CSS (imported via
-  `@sumiui/react/styles` in layout.tsx). We use @source here so that
-  Tailwind's already-loaded engine also scans our own source files for
-  utility classes — without re-importing the full Tailwind bundle (which
-  would create a second @layer theme block and conflict with Sumi's tokens).
+  `@sumiui/react/styles` in layout.tsx) — but that bundle is a fully
+  pre-compiled, static CSS artifact from Sumi's OWN build (it scanned
+  Sumi's own component source, not this project's). @source alone, without
+  a Tailwind entry point of its own, does not actually generate anything
+  from this project's `.tsx` files.
 
-  IMPORTANT — @source scanning limitation:
-  Standard Tailwind scale classes (h-11, pt-11, pb-28, etc.) are reliably
-  detected because they appear as literal strings in scanned files.
-  Arbitrary-value classes like pt-[3.5rem] or pb-[calc(...)] are NOT reliably
-  generated in this setup — they silently produce no CSS.
+  CORRECTED 2026-08-23 (previous version of this comment was wrong): the
+  documentation here used to claim "standard scale classes (h-11, pt-11,
+  pb-28, etc.) are reliably detected" and only arbitrary-value classes
+  (pt-[3.5rem]) were unreliable. That was never actually true — verified
+  directly against the compiled output that ~40 completely standard classes
+  used only by this project (h-11, h-16, right-0, font-bold, text-lg,
+  tracking-tight, max-w-md, space-y-4, and more) produced ZERO CSS, because
+  @source scanning was never actually wired to a real generation pass. Every
+  class that happened to "work" only did so because Sumi's own components
+  coincidentally already used that same class name in their own build.
 
-  For layout-critical header/nav clearance, always use one of:
-  1. Spacer div (preferred for pages outside the trip layout):
-       <div className="h-11" aria-hidden="true" />
-  2. Standard scale equivalent: pt-14 (3.5rem), pt-11 (2.75rem), etc.
-  3. Inline style as last resort: style={{ paddingTop: "2.75rem" }}
-  Never use arbitrary values like pt-[2.75rem] for structural layout.
+  THE FIX: importing tailwindcss's theme + utilities layers directly gives
+  @source a real Tailwind entry point to generate from. Layered imports
+  (not a bare `@import "tailwindcss"`) avoid re-importing preflight/reset,
+  which Sumi's bundle already provides.
+
+  CORRECTED AGAIN 2026-08-24: the claim two paragraphs up ("verified no
+  token conflict") was also wrong, for a third and different reason than
+  either bug above — not missing generation, not the heading cascade, but
+  a genuine same-name collision between two DIFFERENT Sumi-internal token
+  sets. Sumi's compiled bundle contains its own re-declaration of
+  Tailwind's default --container-* spacing scale (--container-2xl: 42rem,
+  used by max-w-2xl etc.) AND a separate, later-declared, completely
+  unrelated --container-* breakpoint-width block for Sumi's own responsive
+  system (--container-2xl: 1440px). Both are unlayered and live in Sumi's
+  own bundle (not introduced by this file's @import above), so ordinary
+  cascade rules apply and Sumi's own later declaration wins — meaning
+  every max-w-{sm,md,lg,xl,2xl} utility in this app was silently resolving
+  to a full breakpoint width (e.g. 1440px) instead of Tailwind's intended
+  rem-based content width (e.g. 42rem/672px). Verified against the
+  compiled stylesheet: two conflicting `--container-2xl` declarations,
+  Sumi's own 1440px one last. Fixed below by redeclaring the five actually
+  co-opted sizes at :root — same unlayered position as Sumi's own
+  colliding block, so ordinary last-one-wins cascade order (this file
+  loads after Sumi's bundle) resolves it correctly, no !important needed.
+
+  Several files still carry inline-style workarounds for specific `right-0`
+  usages written before this fix (AppHeader.tsx, BottomNav.tsx, two CTA
+  bars) — those are still correct and harmless, just no longer strictly
+  necessary. Left as-is rather than churned back, but new code can now use
+  standard Tailwind utility classes normally.
 */
 @source "../**/*.{ts,tsx}";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+
+/*
+  Restores Tailwind's intended --container-* content-width scale for the
+  five sizes this app actually uses (max-w-sm/md/lg/xl/2xl) — see the
+  "CORRECTED AGAIN" note above for why these need restating here rather
+  than trusting the layered @import above. --container-5xl/-7xl are NOT
+  redeclared: verified only sm/md/lg/xl/2xl collide with Sumi's breakpoint
+  block, so touching sizes that were never broken would be needless churn.
+
+  FIXED UPSTREAM 2026-08-24, kept as defensive redundancy: @sumiui/react
+  2.1.2 (bumped same day — package.json now pins ^2.1.2) namespaced Sumi's
+  own colliding token sets under `--sumi-*` (--sumi-container-*,
+  --sumi-shadow-*, --sumi-font-*, --sumi-text-*, --sumi-ease-*, etc.) —
+  a broad cleanup, not just this one collision. Verified directly against
+  the published 2.0.0/2.1.0/2.1.1/2.1.2 tarballs: the collision existed
+  identically in all three pre-2.1.2 versions (not something the 2.1.1
+  upgrade introduced), and 2.1.2's compiled bundle now defines
+  `--container-2xl` exactly once, correctly, at 42rem. Re-verified live
+  post-upgrade: computed max-width on a `max-w-2xl` element is 672px
+  without this block even mattering anymore. Left in place rather than
+  removed — harmless, and cheap insurance against a future downgrade or a
+  regression in a later Sumi release re-introducing the same class of
+  collision under `^2.1.2`'s allowed range.
+*/
+:root {
+  --container-sm: 24rem;
+  --container-md: 28rem;
+  --container-lg: 32rem;
+  --container-xl: 36rem;
+  --container-2xl: 42rem;
+}
+
+/*
+  Viridian accent palette (rebrand plan, docs/plans/2026-08-23-001-feat-
+  viridian-rebrand-plan.md, U2). Overrides only the four top-level semantic
+  accent tokens — --malachite-*, its --jade-* alias, and --status-success
+  (which currently reuses malachite) are deliberately left untouched, so
+  badges/borders/status colors that key off the raw scale don't shift with
+  the brand accent. Declared after Sumi's own @layer theme import (same
+  reasoning as the --container-* block above), so these unlayered
+  declarations win without !important.
+
+  Light-mode base (#40826D, traditional pigment Viridian, H160.9/S34/L38)
+  is the user-specified hex. --accent-soft/-strong/-hover are derived by
+  applying the same HSL-lightness deltas Sumi's own malachite-100/-800
+  spread has relative to malachite-700 (the token --accent currently
+  aliases in light mode) — soft +~65pp L for a light wash, strong -~5pp L
+  for a pressed/emphasis state, hover roughly the midpoint. Dark-mode base
+  reuses the same hue at +20pp L (mirroring malachite-700->malachite-400's
+  light/dark relationship), with soft/strong inverted in direction (dark
+  mode's "soft" is a low-contrast dark tint, not a light wash; "strong"
+  lightens further rather than darkening, matching how emphasis reads
+  against a dark background).
+*/
+:root {
+  --accent: #40826d;
+  --accent-soft: #edf2f1;
+  --accent-strong: #36725f;
+  --accent-hover: #397763;
+}
+
+:root[data-theme="dark"] {
+  --accent: #76b29f;
+  --accent-soft: #27493e;
+  --accent-strong: #95c6b6;
+  --accent-hover: #84bdab;
+}
 
 body {
   background: var(--bg-0);
@@ -87,6 +186,436 @@ body {
   }
 }
 
+/*
+  Discovery/Neighborhoods desktop content-width correction. Both pages
+  apply Tailwind's `max-w-5xl` directly (no dedicated shell class) on the
+  belief it resolves to 80rem/1280px — it doesn't. This project's
+  Tailwind v4 defines `--container-5xl: 64rem` (1024px, see
+  node_modules/tailwindcss/theme.css), with no Sumi override, so these two
+  pages were actually the narrowest desktop pages in the app, not the
+  1280px reference point other shells (wrongly) copied.
+
+  Every desktop mockup (Web-*.dc.html) is a fixed 1440px-wide frame with
+  content spanning edge-to-edge, no outer gutter — so the target is a
+  1440px *content* region. Both pages use p-4 (32px total, border-box),
+  so 1472px = 1440 + 32px padding — same math as .decisions-shell/
+  .itinerary-shell above. `max-w-5xl` stays as-is for the sub-1024px
+  mobile default; this rule only overrides at desktop, same pattern as
+  those two shells overriding their own `max-w-lg` mobile default.
+
+  Gated at 1024px (this app's one true desktop breakpoint, same as every
+  other shell rule in this file) rather than folded into the existing
+  768px split-pane block above — a 768-1023px viewport can't reach either
+  cap, so this is a no-op below 1024px either way.
+
+  Known, accepted side effect: unlike Decisions/Itinerary's fixed 460px
+  list column, .discovery-card-col/.neighborhood-card-col above use a 40%
+  *percentage* split — so this width increase also grows that column
+  proportionally (to ~589px at 1472px, vs. the mockup's fixed 460px).
+  That's a pre-existing split-ratio deviation from the mockup, not
+  introduced or fixed here; changing 60/40 to a fixed px split is a real
+  design decision, out of scope for this content-width correction.
+*/
+@media (min-width: 1024px) {
+  .discovery-shell,
+  .neighborhood-shell {
+    max-width: 1472px;
+  }
+}
+
+/*
+  Home hero (design-fidelity fix, 2026-08-23). Ported from the actual
+  Web-Home.dc.html desktop mockup (recovered from the published design
+  artifact after the local scratchpad copy was cleared) — NOT a split
+  text/art-panel layout as first attempted. The real design keeps the same
+  full-bleed dark gradient + grid + pins treatment as the mobile mockup at
+  every width; only the text scale and vertical arrangement change: headline
+  anchored near the top, description/CTA anchored near the bottom, huge
+  serif type (112-128px in the 1440px mockup) instead of vertically centered
+  content in a narrow column. justify-content: flex-end (mobile, matches
+  Hybrid-Home.dc.html) -> space-between (desktop) achieves that top/bottom
+  split responsively without needing separate pixel-positioned layouts per
+  breakpoint.
+
+  min-height lives here (not the min-h-screen Tailwind class) for the same
+  reason as .discovery-layout/.neighborhood-layout above: verified against
+  this project's actual compiled CSS that min-h-screen generates no rule at
+  all here — the documented @source limitation covers keyword-based sizing
+  utilities, not just arbitrary values.
+*/
+.home-hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.home-hero-header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px 0;
+}
+
+.home-hero-content {
+  position: relative;
+  z-index: 10;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0 24px 32px;
+}
+
+/* Fluid headline sizing — mobile mockup uses 48-56px, the 1440px desktop
+   mockup uses 112-128px. clamp() interpolates between them by viewport
+   width instead of needing separate breakpoint-specific font-size rules
+   (which inline styles can't express — CSS custom properties/clamp() can). */
+.home-hero-headline {
+  font-size: clamp(3rem, 2rem + 6vw, 8rem);
+}
+
+/* Two separate pin datasets (mobile vs desktop pixel positions ported from
+   their respective mockups — see src/app/page.tsx) toggled by breakpoint,
+   same show/hide technique as .neighborhood-mobile-toggle below. */
+.home-hero-pins-desktop {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .home-hero-header {
+    padding: 32px 48px 0;
+  }
+
+  /* Design-fidelity follow-up (2026-08-23): the mockup's literal top/bottom
+     split (headline pinned near the top, description+search+button pinned
+     near the bottom, ~600px of empty gradient between them on a tall
+     viewport) read as broken once actually rendered — per direct feedback,
+     the whole block now reads as one cohesive group, vertically centered,
+     matching how it already read fine on mobile's grouped bottom-anchored
+     layout instead of literally reproducing the mockup's wide gap. */
+  .home-hero-content {
+    justify-content: center;
+    padding: 0 48px;
+  }
+
+  .home-hero-headline-block {
+    max-width: 900px;
+    margin-bottom: 40px;
+  }
+
+  .home-hero-bottom-block {
+    max-width: 480px;
+  }
+
+  .home-hero-pins-mobile {
+    display: none;
+  }
+
+  .home-hero-pins-desktop {
+    display: block;
+  }
+}
+
+/*
+  Desktop nav shell (U2, plan 2026-08-23-002-feat-hybrid-design-fidelity-
+  gaps). AppHeader (44px top bar) and BottomNav (64px bottom tab bar) are
+  mobile-only chrome; WebNav (src/components/ui/WebNav.tsx) is the
+  persistent >=1024px top nav that replaces both. Same explicit
+  show/hide-by-breakpoint technique as .home-hero-pins-mobile/-desktop
+  above — one min-width media query, no JS viewport detection.
+
+  `.mobile-chrome` only gets a rule inside the media query (force-hidden at
+  desktop); below 1024px each component's own layered Tailwind `flex`
+  utility already governs its display, so no default-state rule is needed
+  or wanted here. `.web-nav` needs an explicit default (display: none)
+  since without one its own `flex` class would show it on mobile too.
+
+  These rules are intentionally unlayered (outside any @layer block) so
+  they reliably win over each component's layered Tailwind display utility
+  regardless of source order — see this file's top-of-file comment on
+  Tailwind's CSS Cascade Layers / @source setup in this project.
+*/
+.web-nav {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .mobile-chrome {
+    display: none;
+  }
+
+  .web-nav {
+    display: flex;
+  }
+}
+
+/*
+  Trip-shell scroll region insets (U2, plan 2026-08-23-002). Mobile:
+  content sits between AppHeader (44px) and BottomNav (64px), matching
+  those components' actual heights (src/app/trip/[tripId]/layout.tsx).
+  Desktop (>=1024px): AppHeader/BottomNav are hidden (`.mobile-chrome`
+  above) and WebNav — a taller 64px bar with no bottom counterpart — takes
+  over, so the inset flips to 64px top / 0 bottom.
+*/
+.trip-shell-inset {
+  top: 2.75rem;
+  bottom: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .trip-shell-inset {
+    top: 4rem;
+    bottom: 0;
+  }
+}
+
+/*
+  src/app/profile/page.tsx's own fixed scroll region (pre-trip — outside
+  trip/[tripId]/layout.tsx, so it mounts its own WebNav directly with no
+  tripId, which renders the wordmark + Profile tab with no trip-context
+  chip). Its top inset assumes AppHeader's 44px on mobile; at >=1024px
+  AppHeader hides and WebNav takes over at the same 64px height used
+  everywhere else WebNav appears.
+*/
+.profile-shell-inset {
+  top: 2.75rem;
+}
+
+@media (min-width: 1024px) {
+  .profile-shell-inset {
+    top: 4rem;
+  }
+}
+
+/*
+  src/app/trip/[tripId]/profile/page.tsx's fixed CTA bar sits 4rem above
+  the bottom edge on mobile to clear BottomNav. At >=1024px BottomNav is
+  hidden and WebNav doesn't occupy any bottom space, so the CTA bar can sit
+  flush with the viewport bottom.
+*/
+.trip-cta-inset {
+  bottom: 4rem;
+}
+
+@media (min-width: 1024px) {
+  .trip-cta-inset {
+    bottom: 0;
+  }
+}
+
+/*
+  Decisions split-pane (U6, plan 2026-08-23-002-feat-hybrid-design-fidelity-
+  gaps). Same "static layout, CSS-only breakpoint toggle" technique as
+  .discovery-layout/.neighborhood-layout and .mobile-chrome/.web-nav above,
+  but deliberately NOT reusing those two: this page uses the app's shared
+  >=1024px desktop-nav breakpoint (matching WebNav/.trip-shell-inset) rather
+  than discovery/neighborhood's 768px, and a fixed ~460px list column
+  instead of a percentage split, since the plan calls for a persistent map
+  filling the remaining width rather than a 60/40 share. Below 1024px
+  .decisions-map-col is display:none — the existing mobile scrollable-list
+  layout is otherwise untouched (.decisions-list-col is a plain block
+  wrapper at that width, contributing no layout change of its own).
+
+  .decisions-shell overrides the page's own max-w-lg (Tailwind utility,
+  layered) at desktop so the wider split-pane has room. This rule is
+  intentionally unlayered so it reliably wins over the layered max-w-lg
+  utility regardless of source order, same reasoning as .web-nav above.
+
+  92rem (not a round number) is deliberate: the desktop mockups
+  (Web-*.dc.html) are all fixed 1440px-wide frames with content spanning
+  edge-to-edge, no outer gutter — so the target is a 1440px *content*
+  region, not a 1440px outer box. Tailwind's border-box means this
+  shell's own p-4 padding (32px total) eats into max-width, so
+  92rem = 1472px = 1440 + 32px padding. Reported directly as "the app is
+  still too narrow on desktop, see design" after a first correction
+  (below, on .tripsetup-shell) under-shot the same target.
+*/
+@media (min-width: 1024px) {
+  .decisions-shell {
+    max-width: 92rem;
+  }
+}
+
+.decisions-map-col {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .decisions-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+  }
+
+  .decisions-list-col {
+    width: 460px;
+    flex-shrink: 0;
+  }
+
+  .decisions-map-col {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    position: sticky;
+    top: 60px;
+    height: 70vh;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line-1);
+    background: var(--bg-2);
+  }
+}
+
+/*
+  Itinerary desktop split-pane (U7, plan 2026-08-23-002-feat-hybrid-design-
+  fidelity-gaps). Below 1024px the existing continuous-scroll-with-jump-
+  nav-pills timeline must stay pixel-for-pixel unchanged — rather than make
+  that single block viewport-aware via JS matchMedia, both a mobile variant
+  (all days, scroll-to-anchor pills) and a desktop variant (one active day
+  + route map, filtering pills) render simultaneously in the DOM and are
+  shown/hidden purely by breakpoint, the same technique as
+  .mobile-chrome/.web-nav (U2) and .home-hero-pins-mobile/-desktop (Home).
+
+  `.itinerary-shell` only needs a >=1024px override — the element already
+  carries Tailwind's `max-w-lg` class for the mobile default, and this rule
+  (unlayered, so it wins regardless of source order per this file's
+  top-of-file Cascade Layers note) widens it at desktop to fit the list+map
+  columns.
+
+  1472px = 1440 (mockup's fixed frame width, edge-to-edge content, no outer
+  gutter) + 32px (this shell's own p-4 padding, which border-box eats into
+  max-width) — same "1440px content region" math as .decisions-shell above.
+*/
+.itinerary-mobile-only {
+  display: block;
+}
+
+.itinerary-desktop-split {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .itinerary-shell {
+    max-width: 1472px;
+  }
+
+  .itinerary-mobile-only {
+    display: none;
+  }
+
+  .itinerary-desktop-split {
+    display: flex;
+    flex-direction: row;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .itinerary-desktop-list-col {
+    width: 460px;
+    flex-shrink: 0;
+    min-width: 0;
+  }
+
+  .itinerary-desktop-map-col {
+    flex: 1;
+    min-width: 0;
+    height: 70vh;
+    position: sticky;
+    top: 60px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line-1);
+    background: var(--bg-2);
+  }
+}
+
+/*
+  Trip setup desktop split-pane. Missed entirely in the first design-
+  fidelity pass — Web-TripSetup.dc.html was dismissed as "different field
+  set, out of scope" without noticing the STRUCTURAL layout (a fixed-width
+  form column left, a persistent illustrated panel right) is the exact
+  same list+panel pattern every other desktop page already has, and is
+  fully achievable regardless of which fields the form column contains.
+  This app's form has 6 sections where the mockup's has 3 — the extra
+  sections just make the form column taller/scrollable; the panel itself
+  needs no knowledge of what's in the form.
+
+  CORRECTED (twice now): the first version of this block used a narrower
+  72rem shell with a 560px form column, leaving the art panel under half
+  the shell's width — reported directly as "the page is too narrow and
+  the map is tiny." That was fixed by widening to 80rem (1280px) and
+  resetting the form column to the mockup's own 480px, on the belief that
+  80rem matched Discovery/Neighborhoods' `max-w-5xl`. That belief was
+  wrong: Tailwind v4's `--container-5xl` is 64rem (1024px), not 80rem —
+  so Discovery/Neighborhoods were actually narrower than this shell, not
+  matching it, and all of them were still short of the mockup.
+
+  The real target: every desktop mockup (Web-*.dc.html) is a fixed
+  1440px-wide frame with content spanning edge-to-edge, no outer gutter —
+  so the target is a 1440px *content* region, not an arbitrary "wide
+  enough" number. Tailwind's border-box means this shell's own px-6
+  padding (48px total) eats into max-width, so 93rem = 1488px =
+  1440 + 48px padding. `.tripsetup-form-col` stays at the mockup's 480px;
+  all the added width flows into the flexible art column via flex: 1.
+  Discovery/Neighborhoods/Decisions/Itinerary got the equivalent
+  1440px-content-region correction in the same pass (see their own shell
+  rules) — reported directly as "the app is still too narrow on desktop,
+  see design."
+*/
+.tripsetup-art-col {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .tripsetup-shell {
+    max-width: 93rem;
+  }
+
+  .tripsetup-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 32px;
+  }
+
+  .tripsetup-form-col {
+    width: 480px;
+    flex-shrink: 0;
+  }
+
+  .tripsetup-art-col {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    position: sticky;
+    top: 88px;
+    height: 70vh;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line-1);
+    background: var(--bg-2);
+  }
+}
+
+/*
+  Unlike .decisions-map-col/.itinerary-desktop-map-col (where a Leaflet
+  component supplies the real content and bg-2 above is just a loading-
+  state fallback color sitting behind it), this panel's entire content IS
+  EditorialBackdrop — so EditorialBackdrop's own z-index:-1 (meant to sit
+  behind sibling page content) instead paints below .tripsetup-art-col's
+  own bg-2, since `position: sticky` on that element establishes the
+  stacking context -1 resolves against. Verified empirically: the grid/
+  blob were fully invisible until this override. Raising it to 0 puts it
+  above the parent's background while staying below the hint-bar sibling,
+  which comes later in DOM order at the default stacking level.
+*/
+.tripsetup-art-col .editorial-backdrop {
+  z-index: 0;
+}
+
 @layer utilities {
   .scrollbar-none {
     scrollbar-width: none;
@@ -105,4 +634,96 @@ body {
 */
 .bg-accent {
   color: var(--fg-on-malachite);
+}
+
+/*
+  Editorial backdrop (grid texture + glow/blob) — extracted from Home's
+  hero background (U1, plan 2026-08-23-002-feat-hybrid-design-fidelity-
+  gaps) into reusable classes so five more trip-flow pages can share the
+  same illustrated chrome via src/components/ui/EditorialBackdrop.tsx.
+  Home's own page.tsx is intentionally untouched — its inline-style version
+  is the already-verified source of truth; these classes mirror its exact
+  values for the dark variant rather than having Home consume them, so
+  there is zero risk of regressing it.
+
+  .editorial-bg-grid-dark / .editorial-bg-glow-dark reproduce, unchanged,
+  the repeating-linear-gradient + radial-gradient values from
+  src/app/page.tsx lines 222-240.
+
+  .editorial-bg-grid-light recolors the same repeating-linear-gradient
+  technique onto this app's light-surface tokens instead of inventing new
+  hex values: it uses --line-1, the ink-tinted translucent hairline token
+  already used throughout the app for borders (see .discovery-map-col
+  above, or profile/neighborhoods/decisions pages), so the grid reads as a
+  faint line texture rather than a hard rule.
+
+  .editorial-bg-blob-sage / -tan give the light variant the soft rounded
+  "blob" shapes present in the original Hybrid-Neighborhoods.dc.html /
+  Hybrid-Decisions.dc.html mockups (which Home's own background does not
+  have) — using --malachite-100 (#d7e4dc) and --silk-400 (#dcd2ba), which
+  are exact swatch matches for the mockups' sage/tan blob fills, referenced
+  by token instead of copied as literal hex. No radial glow in the light
+  variant: the mockups' non-Home pages pair grid+blobs, not grid+glow.
+
+  .editorial-backdrop is the positioning wrapper every variant renders
+  inside: absolute, inset:0, z-index:-1. Per CSS2.1's painting order,
+  negative-z-index positioned descendants paint before their parent's
+  non-positioned in-flow content, so this sits behind whatever the
+  consuming page renders next to it without requiring that content to
+  declare its own z-index — the parent just needs `position: relative`
+  (or `fixed`, which equally establishes a containing block) wherever it
+  doesn't already have one.
+*/
+.editorial-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.editorial-bg-grid {
+  position: absolute;
+  inset: 0;
+}
+
+.editorial-bg-grid-dark {
+  opacity: 0.35;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(238, 231, 214, 0.06) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(90deg, rgba(238, 231, 214, 0.06) 0 1px, transparent 1px 72px);
+}
+
+.editorial-bg-grid-light {
+  background-image:
+    repeating-linear-gradient(0deg, var(--line-1) 0 1px, transparent 1px 72px),
+    repeating-linear-gradient(90deg, var(--line-1) 0 1px, transparent 1px 72px);
+}
+
+.editorial-bg-glow-dark {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 78% 12%, rgba(79, 132, 102, 0.2) 0%, transparent 55%);
+}
+
+.editorial-bg-blob {
+  position: absolute;
+  border-radius: 44% 56% 60% 40%;
+}
+
+.editorial-bg-blob-sage {
+  left: -60px;
+  top: 40px;
+  width: 220px;
+  height: 240px;
+  background: var(--malachite-100);
+}
+
+.editorial-bg-blob-tan {
+  right: -50px;
+  bottom: -30px;
+  width: 180px;
+  height: 190px;
+  border-radius: 40%;
+  background: var(--silk-400);
 }

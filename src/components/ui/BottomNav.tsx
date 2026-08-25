@@ -40,9 +40,16 @@ export function BottomNav({ tripId }: BottomNavProps) {
   ];
 
   return (
+    // Design-fidelity fix (2026-08-23): see AppHeader.tsx's identical
+    // comment — `right-0` produces no CSS rule anywhere in this project,
+    // so this nav was collapsing to ~140px (content width) instead of the
+    // full viewport width.
+    // Desktop nav shell (U2, 2026-08-23-002): hidden at >=1024px via the
+    // `mobile-chrome` class (globals.css) — WebNav takes over at that
+    // breakpoint.
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 h-16 flex items-center border-t"
-      style={{ background: "var(--bg-1)", borderColor: "var(--line-1)" }}
+      className="mobile-chrome fixed bottom-0 left-0 z-50 h-16 flex items-center border-t"
+      style={{ right: 0, background: "var(--bg-1)", borderColor: "var(--line-1)" }}
     >
       {items.map((item) => {
         const active = pathname.includes(item.match);

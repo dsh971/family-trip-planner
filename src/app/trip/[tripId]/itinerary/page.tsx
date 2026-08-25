@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Timeline,
   Button,
@@ -13,7 +14,17 @@ import {
 } from "@sumiui/react";
 import type { TimelineItemData } from "@sumiui/react";
 import { Utensils, MapPin } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import { getPlaceGradient } from "@/lib/placeGradient";
+import type { RouteMapStop } from "@/components/ui/RouteMap";
+
+// ssr:false (matches DiscoveryMap's dynamic import in discovery/page.tsx) —
+// react-leaflet touches `window` at module init, which breaks server
+// rendering.
+const RouteMap = dynamic(
+  () => import("@/components/ui/RouteMap"),
+  { ssr: false, loading: () => <div style={{ height: "100%" }} /> }
+);
 
 interface RouteResult {
   fromName: string;
@@ -69,23 +80,35 @@ function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData
     const name = seg.payload?.["placeName"] as string | undefined;
     const category = seg.payload?.["category"] as string | undefined;
     const isDetour = seg.payload?.["worthTheDetour"] === true;
+    const photoReference = seg.payload?.["photoReference"] as string | null | undefined;
     return {
       id: String(seg.id),
       time: seg.startTime ?? undefined,
       marker: "dot-ok",
       title: (
         <span className="flex items-center gap-2">
-          <span
-            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ background: "var(--bg-2)" }}
-            aria-hidden="true"
-          >
-            {category === "eat" ? (
-              <Utensils size={14} style={{ color: "var(--fg-2)" }} />
-            ) : (
-              <MapPin size={14} style={{ color: "var(--fg-2)" }} />
-            )}
-          </span>
+          {photoReference ? (
+            <img
+              src={`/api/places/photo?ref=${encodeURIComponent(photoReference)}&width=64`}
+              alt=""
+              loading="lazy"
+              className="w-8 h-8 rounded-lg shrink-0"
+              style={{ objectFit: "cover", display: "block" }}
+              onError={(e) => { (e.currentTarget.style.display = "none"); }}
+            />
+          ) : (
+            <span
+              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: getPlaceGradient(name) }}
+              aria-hidden="true"
+            >
+              {category === "eat" ? (
+                <Utensils size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
+              ) : (
+                <MapPin size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
+              )}
+            </span>
+          )}
           <span>{name ?? "—"}</span>
           <Badge variant={category === "eat" ? "warning" : "info"}>
             {category === "eat" ? "Eat" : "Visit"}
@@ -110,10 +133,14 @@ function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData
 
   // route
   const route = seg.payload as unknown as RouteResult | null;
+  // Design-fidelity fix (2026-08-23): walkingMinutes is a raw computed
+  // float (distance / walking speed) — was rendering as e.g.
+  // "3.8216666666666668 min walk" verbatim. Round for display only; the
+  // underlying value is unaffected for any calculation.
   const label =
     route?.walkingMinutes != null ? (
       <span>
-        <span style={{ fontFamily: "var(--font-mono)" }}>{route.walkingMinutes}</span> min walk
+        <span style={{ fontFamily: "var(--font-mono)" }}>{Math.round(route.walkingMinutes)}</span> min walk
       </span>
     ) : (
       "Route"
@@ -128,7 +155,34 @@ function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData
   };
 }
 
-function DaySection({ day }: { day: DayResponse }) {
+// idPrefix (U7, plan 2026-08-23-002): the desktop split-pane renders the
+// active day's DaySection alongside the mobile continuous list (both stay
+// mounted simultaneously — CSS, not JS, decides which is visible per
+// breakpoint, see the .itinerary-mobile-only/.itinerary-desktop-split
+// comment below). Without a distinguishing id, two DaySections for the
+// same day (mobile's full list + desktop's single active day) would both
+// render `id={day.date}`, producing a duplicate-id DOM. scrollToDay (mobile
+// jump-nav) always targets the plain, unprefixed id, so only the desktop
+// render passes a prefix.
+// Route-map stops for a day (U7): lat/lng now flow through each "place"
+// segment's payload (added in scheduler.ts's DecisionItem→SegmentSpec
+// construction alongside the existing photoReference field, same
+// `?? null` pattern) — no second lookup needed. Stops without resolved
+// coordinates (lat/lng null) are skipped rather than plotted at (0,0).
+function dayToRouteStops(day: DayResponse): RouteMapStop[] {
+  return day.segments
+    .filter((s) => s.segmentType === "place")
+    .map((s) => {
+      const lat = s.payload?.["lat"] as number | null | undefined;
+      const lng = s.payload?.["lng"] as number | null | undefined;
+      const name = s.payload?.["placeName"] as string | undefined;
+      if (lat == null || lng == null) return null;
+      return { id: String(s.id), name: name ?? "—", lat, lng };
+    })
+    .filter((s): s is RouteMapStop => s !== null);
+}
+
+function DaySection({ day, idPrefix }: { day: DayResponse; idPrefix?: string }) {
   const items: TimelineItemData[] = day.segments.map(segmentToTimelineItem);
   const hasPlaces = day.segments.some((s) => s.segmentType === "place");
 
@@ -141,7 +195,7 @@ function DaySection({ day }: { day: DayResponse }) {
     }, 0);
 
   return (
-    <div className="mb-4" id={day.date}>
+    <div className="mb-4" id={idPrefix ? `${idPrefix}-${day.date}` : day.date}>
       <div className="flex items-center justify-between mb-3">
         {/* Use div not h2 — sumiui applies display font + large size to h2 globally */}
         <div
@@ -158,7 +212,7 @@ function DaySection({ day }: { day: DayResponse }) {
         </div>
         <div className="flex items-center gap-3 text-xs" style={{ color: "var(--fg-3)", fontFamily: "var(--font-mono)" }}>
           {placeCount > 0 && <span>{placeCount} place{placeCount !== 1 ? "s" : ""}</span>}
-          {walkMinutes > 0 && <span>{walkMinutes} min walk</span>}
+          {walkMinutes > 0 && <span>{Math.round(walkMinutes)} min walk</span>}
         </div>
       </div>
       {hasPlaces ? (
@@ -239,13 +293,20 @@ export default function ItineraryPage() {
   if (state === "empty") {
     return (
       <main className="max-w-lg mx-auto p-4 space-y-4">
-        <div className="mb-4">
-          <StepProgress currentStep="plan" tripId={params.tripId} />
-        </div>
         <div>
+          {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+              identical h1 comment — Sumi's unlayered h1 base rule always
+              beats the text-2xl/font-bold/tracking-tight utility classes. */}
           <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.2,
+              color: "var(--fg-1)",
+              margin: 0,
+            }}
           >
             Your schedule
           </h1>
@@ -267,15 +328,22 @@ export default function ItineraryPage() {
   }
 
   return (
-    <main className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="mb-4">
-        <StepProgress currentStep="plan" />
-      </div>
-
+    <main className="itinerary-shell max-w-lg mx-auto p-4 space-y-4" style={{ position: "relative" }}>
+      <EditorialBackdrop variant="light" />
       <div>
+        {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+            identical h1 comment — Sumi's unlayered h1 base rule always
+            beats the text-2xl/font-bold/tracking-tight utility classes. */}
         <h1
-          className="text-2xl font-bold tracking-tight"
-          style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.5rem",
+            fontWeight: 700,
+            letterSpacing: "-0.025em",
+            lineHeight: 1.2,
+            color: "var(--fg-1)",
+            margin: 0,
+          }}
         >
           Your schedule
         </h1>
@@ -328,37 +396,96 @@ export default function ItineraryPage() {
             />
           ) : (
             <>
-              {/* Day-switcher pill row */}
-              <div
-                className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
-                role="group"
-                aria-label="Jump to day"
-              >
-                {data.days.map((day, i) => {
-                  const active = activeDay === day.date;
-                  return (
-                    <button
-                      key={day.date}
-                      aria-pressed={active}
-                      onClick={() => scrollToDay(day.date)}
-                      className="rounded-full px-4 py-2 text-sm font-medium shrink-0 transition-colors"
-                      style={{
-                        background: active ? "var(--accent)" : "transparent",
-                        color: active ? "var(--fg-on-malachite)" : "var(--fg-2)",
-                        border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
-                      }}
-                    >
-                      {formatDayPill(day.date, i)}
-                    </button>
-                  );
-                })}
+              {/* Mobile (< 1024px): unchanged continuous-scroll-with-jump-nav
+                  behavior — pills scroll to a day's anchor, every day's full
+                  timeline stays mounted and scrollable in one column. Kept
+                  byte-for-byte in behavior; only wrapped in a CSS-hidden-at-
+                  desktop container (U7, plan 2026-08-23-002) so the desktop
+                  split-pane below can render independently rather than
+                  reusing (and complicating) this JS handler. */}
+              <div className="itinerary-mobile-only">
+                <div
+                  className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+                  role="group"
+                  aria-label="Jump to day"
+                >
+                  {data.days.map((day, i) => {
+                    const active = activeDay === day.date;
+                    return (
+                      <button
+                        key={day.date}
+                        aria-pressed={active}
+                        onClick={() => scrollToDay(day.date)}
+                        className="rounded-full px-4 py-2 text-sm font-medium shrink-0 transition-colors"
+                        style={{
+                          background: active ? "var(--accent)" : "transparent",
+                          color: active ? "var(--fg-on-malachite)" : "var(--fg-2)",
+                          border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
+                        }}
+                      >
+                        {formatDayPill(day.date, i)}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div data-testid="itinerary-days">
+                  {data.days.map((day) => (
+                    <DaySection key={day.date} day={day} />
+                  ))}
+                </div>
               </div>
 
-              <div data-testid="itinerary-days">
-                {data.days.map((day) => (
-                  <DaySection key={day.date} day={day} />
-                ))}
-              </div>
+              {/* Desktop (>= 1024px), U7: day pills filter the visible
+                  timeline to one day instead of scrolling to an anchor —
+                  the list column shows only the active day, and a route map
+                  with numbered pins fills the remaining width. Same
+                  `activeDay` state as mobile (defaults to the first day when
+                  null), so switching days here or on mobile (if the
+                  viewport were resized) stays in sync. */}
+              {(() => {
+                const activeDayData =
+                  data.days.find((d) => d.date === activeDay) ?? data.days[0];
+                const routeStops = dayToRouteStops(activeDayData);
+                return (
+                  <div className="itinerary-desktop-split" data-testid="itinerary-desktop-split">
+                    <div className="itinerary-desktop-list-col">
+                      <div
+                        className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+                        role="group"
+                        aria-label="Select day"
+                      >
+                        {data.days.map((day, i) => {
+                          const active = activeDayData.date === day.date;
+                          return (
+                            <button
+                              key={day.date}
+                              aria-pressed={active}
+                              onClick={() => setActiveDay(day.date)}
+                              className="rounded-full px-4 py-2 text-sm font-medium shrink-0 transition-colors"
+                              style={{
+                                background: active ? "var(--accent)" : "transparent",
+                                color: active ? "var(--fg-on-malachite)" : "var(--fg-2)",
+                                border: `1px solid ${active ? "var(--accent)" : "var(--line-2)"}`,
+                              }}
+                            >
+                              {formatDayPill(day.date, i)}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div data-testid="itinerary-desktop-day">
+                        <DaySection day={activeDayData} idPrefix="desktop" />
+                      </div>
+                    </div>
+
+                    <div className="itinerary-desktop-map-col">
+                      <RouteMap stops={routeStops} />
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
 

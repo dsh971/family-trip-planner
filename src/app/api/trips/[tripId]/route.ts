@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
-import { trips, familyProfiles } from "@/db/schema";
+import { trips, familyProfiles, destinations } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { validateProfile, validateTrip } from "@/services/profile/validation";
 import { geocodeHotelAddress, HotelNotFoundError } from "@/services/trips/geocoding";
@@ -20,6 +20,7 @@ export async function GET(
     .select()
     .from(trips)
     .innerJoin(familyProfiles, eq(trips.familyProfileId, familyProfiles.id))
+    .innerJoin(destinations, eq(trips.destinationId, destinations.id))
     .where(eq(trips.id, tripId))
     .all();
 
@@ -34,6 +35,9 @@ export async function GET(
     // Exposed so client pages (e.g. neighborhoods/page.tsx) can look up this trip's
     // real destination instead of hardcoding destinationId (plan 2026-08-20-011 U2).
     destinationId: row.trips.destinationId,
+    // Exposed so the Home page can show a returning traveler's trip name
+    // without a second round-trip (design-fidelity fix, 2026-08-22).
+    destinationName: row.destinations.name,
     // Exposed so client pages (e.g. discovery/page.tsx, plan 2026-08-20-011
     // U7) can open the U6 SSE research stream for this trip's selected
     // neighborhood without a second round-trip.

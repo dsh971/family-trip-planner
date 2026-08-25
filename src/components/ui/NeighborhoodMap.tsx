@@ -125,11 +125,17 @@ export default function NeighborhoodMap({
     <div
       className="w-full h-full rounded-xl overflow-hidden"
       role="application"
-      aria-label="Tokyo neighborhoods map"
+      aria-label="Neighborhoods map"
     >
       <MapContainer
         center={[35.6762, 139.6503]}
         zoom={12}
+        // zoomSnap=0: Leaflet's default zoomSnap (1) floors fitBounds' computed
+        // zoom to the nearest whole level (see BoundsFitter below), which can
+        // discard up to a full zoom level of tightness — same class of bug
+        // verified in DiscoveryMap.tsx against real trip coordinates, applied
+        // here too since this component has an identical BoundsFitter.
+        zoomSnap={0}
         style={{ height: "100%", width: "100%" }}
         zoomControl={true}
       >

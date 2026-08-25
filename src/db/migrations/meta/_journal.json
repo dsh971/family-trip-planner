@@ -64,6 +64,13 @@
       "when": 1787351961421,
       "tag": "0008_places_neighborhood_id_index",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1787588483000,
+      "tag": "0009_places_photo_reference",
+      "breakpoints": true
     }
   ]
 }

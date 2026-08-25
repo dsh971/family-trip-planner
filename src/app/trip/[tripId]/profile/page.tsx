@@ -12,7 +12,8 @@ import {
   Skeleton,
 } from "@sumiui/react";
 import { Users, Heart, Clock, CalendarDays, Building2 } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import TripSetupArt from "@/components/ui/TripSetupArt";
 
 interface PacingWindow {
   name: string;
@@ -42,9 +43,19 @@ function SectionHeader({
         {num}
       </span>
       <span style={{ color: "var(--accent)" }}>{icon}</span>
+      {/* Design-fidelity fix (2026-08-23): see src/app/profile/page.tsx's
+          identical SectionHeader h2 comment — Sumi's unlayered h2 base rule
+          always beats text-base/font-semibold/tracking-tight. */}
       <h2
-        className="text-base font-semibold tracking-tight"
-        style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+        style={{
+          fontFamily: "var(--font-display)",
+          fontSize: "1rem",
+          fontWeight: 600,
+          letterSpacing: "-0.025em",
+          lineHeight: 1.375,
+          color: "var(--fg-1)",
+          margin: 0,
+        }}
       >
         {title}
       </h2>
@@ -71,6 +82,7 @@ export default function EditProfilePage() {
   const [hotelName, setHotelName] = useState("");
   const [hotelAddress, setHotelAddress] = useState("");
   const [staysEntireTrip, setStaysEntireTrip] = useState(true);
+  const [destinationName, setDestinationName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -82,6 +94,7 @@ export default function EditProfilePage() {
         hotelName: string | null;
         lodgingAnchorLat: number | null;
         lodgingAnchorAddress: string | null;
+        destinationName?: string;
         familyProfile: {
           adultCount: number;
           children: Child[];
@@ -91,6 +104,7 @@ export default function EditProfilePage() {
         };
       };
 
+      setDestinationName(data.destinationName ?? null);
       setAdultCount(data.familyProfile.adultCount);
       setChildren(data.familyProfile.children);
       setDietaryTags(data.familyProfile.dietaryTags.join(", "));
@@ -158,17 +172,26 @@ export default function EditProfilePage() {
   return (
     <>
         <main
-          className="max-w-2xl mx-auto w-full px-6 space-y-4"
+          className="tripsetup-shell max-w-2xl mx-auto w-full px-6"
           style={{ paddingTop: "1rem", paddingBottom: "calc(77px + 2rem)" }}
         >
-          <div className="mb-4">
-            <StepProgress currentStep="profile" tripId={tripId} />
-          </div>
-
+        <div className="tripsetup-layout">
+        <div className="tripsetup-form-col space-y-4" style={{ position: "relative" }}>
+        <EditorialBackdrop variant="light" />
           <div className="mb-2">
+            {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
+                identical h1 comment — Sumi's unlayered h1 base rule always
+                beats text-2xl/font-bold/tracking-tight utility classes. */}
             <h1
-              className="text-2xl font-bold tracking-tight"
-              style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                letterSpacing: "-0.025em",
+                lineHeight: 1.2,
+                color: "var(--fg-1)",
+                margin: 0,
+              }}
             >
               Edit Trip Profile
             </h1>
@@ -368,12 +391,23 @@ export default function EditProfilePage() {
 
             {error && <Alert variant="danger">{error}</Alert>}
           </form>
+        </div>
+        <TripSetupArt
+          destinationName={destinationName ?? ""}
+          hint={destinationName ? `Editing your ${destinationName} trip` : "Editing your trip"}
+        />
+        </div>
         </main>
 
-      {/* Fixed CTA bar — sits above the 4rem bottom nav */}
+      {/* Fixed CTA bar — sits above the 4rem bottom nav on mobile; flush
+          with the viewport bottom at >=1024px, where BottomNav is hidden
+          and WebNav (top-only) doesn't occupy any bottom space — see
+          `.trip-cta-inset` in globals.css. Design-fidelity fix
+          (2026-08-23): see AppHeader.tsx's identical comment — right-0
+          produces no CSS rule anywhere in this project. */}
       <div
-        className="fixed left-0 right-0 p-4 z-50"
-        style={{ bottom: "4rem", background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
+        className="trip-cta-inset fixed left-0 p-4 z-50"
+        style={{ right: 0, background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
       >
         <div className="max-w-2xl mx-auto flex gap-3">
           <Button

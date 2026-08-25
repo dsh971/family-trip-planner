@@ -13,6 +13,7 @@ import ProfilePage from "./page";
 const pushMock = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
+  usePathname: () => "/profile",
 }));
 
 function mockFetchSequence(handlers: {

@@ -16,7 +16,7 @@ vi.mock("leaflet", () => {
 
 vi.mock("react-leaflet", () => ({
   MapContainer: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="map-container" role="application" aria-label="Tokyo neighborhoods map">
+    <div data-testid="map-container" role="application" aria-label="Neighborhoods map">
       {children}
     </div>
   ),
@@ -95,7 +95,7 @@ describe("NeighborhoodMap", () => {
     expect(onSelect).toHaveBeenCalledWith(1);
   });
 
-  it("exposes an accessible map container with role application and aria-label", () => {
+  it("exposes an accessible map container with role application and a destination-agnostic aria-label", () => {
     render(
       <NeighborhoodMap
         neighborhoods={sampleNeighborhoods}
@@ -106,7 +106,11 @@ describe("NeighborhoodMap", () => {
     );
     const maps = screen.getAllByRole("application");
     expect(maps.length).toBeGreaterThanOrEqual(1);
-    // The outer wrapper carries the aria-label
-    expect(screen.getAllByRole("application")[0].getAttribute("aria-label")).toContain("Tokyo");
+    // The outer wrapper carries the aria-label — must not hardcode a specific
+    // destination name (was "Tokyo neighborhoods map", a leftover from before
+    // dynamic destination research).
+    const outerLabel = screen.getAllByRole("application")[0].getAttribute("aria-label");
+    expect(outerLabel).toContain("Neighborhoods map");
+    expect(outerLabel).not.toContain("Tokyo");
   });
 });

@@ -13,9 +13,10 @@ import {
   EmptyState,
 } from "@sumiui/react";
 import { Building2, Users } from "lucide-react";
-import StepProgress from "@/components/ui/StepProgress";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
+import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import { getPlaceGradient } from "@/lib/placeGradient";
 import type { Neighborhood } from "@/db/schema";
 
 const NeighborhoodMap = dynamic(
@@ -165,8 +166,21 @@ function NeighborhoodCard({
         }
       >
         <CardBody className="space-y-2">
-          {/* Header row: rank + name + safety badge */}
+          {/* Header row: thumbnail + rank + name + safety badge. Neighborhoods
+              have no Google Places photo of their own (unlike individual
+              places), so this is always the deterministic gradient fallback —
+              matching by nb.name (there's no per-neighborhood placeId). */}
           <div className="flex items-center gap-2 flex-wrap">
+            <div
+              className="shrink-0"
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "8px",
+                background: getPlaceGradient(nb.name),
+              }}
+              aria-hidden="true"
+            />
             <span
               className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
               style={{ background: "var(--accent)", color: "var(--fg-on-malachite)" }}
@@ -420,16 +434,27 @@ export default function NeighborhoodsPage() {
   const manualTriggerDisabled = research.status === "researching" || cooldown;
 
   return (
-    <main className="p-4 pt-6 pb-20 max-w-5xl mx-auto">
-      <div className="mb-4">
-        <StepProgress currentStep="area" tripId={tripId} />
-      </div>
-
+    <main className="neighborhood-shell p-4 pt-6 pb-20 max-w-5xl mx-auto" style={{ position: "relative" }}>
+      <EditorialBackdrop variant="light" />
       <div className="mb-4 space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">
+          {/* Design-fidelity fix (2026-08-23): explicit style, not classNames
+              — Sumi's own base CSS sets h1's font-size/weight/tracking/
+              line-height/margin unconditionally and UNLAYERED, which always
+              beats layered utility classes (CSS Cascade Layers spec)
+              regardless of specificity. text-2xl/font-bold/tracking-tight
+              silently did nothing here; verified via computed styles this
+              was rendering at Sumi's default ~48px, not the intended 24px. */}
           <h1
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "var(--font-display)", color: "var(--fg-1)" }}
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "1.5rem",
+              fontWeight: 700,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.2,
+              color: "var(--fg-1)",
+              margin: 0,
+            }}
           >
             Where do you want to explore?
           </h1>

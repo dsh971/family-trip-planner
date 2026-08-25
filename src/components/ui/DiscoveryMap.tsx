@@ -154,6 +154,13 @@ export default function DiscoveryMap({
       <MapContainer
         center={[35.6762, 139.6503]}
         zoom={12}
+        // zoomSnap=0: Leaflet's default zoomSnap (1) floors fitBounds' computed
+        // zoom to the nearest whole level (see BoundsFitter below), which can
+        // discard up to a full zoom level of tightness — verified against a
+        // real Lisbon trip's coordinates this floored a ~12.9 fit down to 12,
+        // roughly doubling the visible area. Continuous zoom lets fitBounds
+        // land on the exact zoom the place cluster needs.
+        zoomSnap={0}
         style={{ height: "100%", width: "100%" }}
       >
         <TileLayer
