@@ -137,4 +137,34 @@ describe("geocodeCity", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("REQUEST_DENIED"));
     warnSpy.mockRestore();
   });
+
+  it("includes Google's error_message in the warning when present, so a billing-style failure is diagnosable from the log line alone (U2)", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: "REQUEST_DENIED",
+        results: [],
+        error_message: "You must enable Billing on the Google Cloud Project",
+      }),
+    } as Response);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await geocodeCity("Lisbon", "Portugal");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("You must enable Billing on the Google Cloud Project")
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("still warns without a trailing dash when Google sends no error_message", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: "OVER_QUERY_LIMIT", results: [] }),
+    } as Response);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await geocodeCity("Lisbon", "Portugal");
+    expect(warnSpy).toHaveBeenCalledWith('[geocodeCity] Google Places returned OVER_QUERY_LIMIT for "Lisbon, Portugal"');
+    warnSpy.mockRestore();
+  });
 });

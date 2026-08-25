@@ -99,6 +99,7 @@ export async function geocodeCity(
 
   const json = (await res.json()) as {
     status: string;
+    error_message?: string;
     results: Array<{
       geometry: { location: { lat: number; lng: number } };
       formatted_address: string;
@@ -115,8 +116,14 @@ export async function geocodeCity(
     // is a live preview-as-you-type, not a form submission, so there's no
     // good way to surface a distinct error state to the traveler here; the
     // warning is for whoever's debugging why the map preview isn't showing.
+    //
+    // error_message is included when Google sends one (it does for
+    // REQUEST_DENIED, e.g. "You must enable Billing on the Google Cloud
+    // Project") so the known billing block (plan 2026-08-24-001, U2) reads
+    // directly from the log line instead of requiring a re-diagnosis.
     if (json.status !== "ZERO_RESULTS") {
-      console.warn(`[geocodeCity] Google Places returned ${json.status} for "${query}"`);
+      const detail = json.error_message ? ` — ${json.error_message}` : "";
+      console.warn(`[geocodeCity] Google Places returned ${json.status} for "${query}"${detail}`);
     }
     return null;
   }
