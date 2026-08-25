@@ -434,7 +434,7 @@ export default function NeighborhoodsPage() {
   const manualTriggerDisabled = research.status === "researching" || cooldown;
 
   return (
-    <main className="p-4 pt-6 pb-20 max-w-5xl mx-auto" style={{ position: "relative" }}>
+    <main className="neighborhood-shell p-4 pt-6 pb-20 max-w-5xl mx-auto" style={{ position: "relative" }}>
       <EditorialBackdrop variant="light" />
       <div className="mb-4 space-y-2">
         <div className="flex items-center justify-between gap-2 flex-wrap">

@@ -187,6 +187,43 @@ body {
 }
 
 /*
+  Discovery/Neighborhoods desktop content-width correction. Both pages
+  apply Tailwind's `max-w-5xl` directly (no dedicated shell class) on the
+  belief it resolves to 80rem/1280px — it doesn't. This project's
+  Tailwind v4 defines `--container-5xl: 64rem` (1024px, see
+  node_modules/tailwindcss/theme.css), with no Sumi override, so these two
+  pages were actually the narrowest desktop pages in the app, not the
+  1280px reference point other shells (wrongly) copied.
+
+  Every desktop mockup (Web-*.dc.html) is a fixed 1440px-wide frame with
+  content spanning edge-to-edge, no outer gutter — so the target is a
+  1440px *content* region. Both pages use p-4 (32px total, border-box),
+  so 1472px = 1440 + 32px padding — same math as .decisions-shell/
+  .itinerary-shell above. `max-w-5xl` stays as-is for the sub-1024px
+  mobile default; this rule only overrides at desktop, same pattern as
+  those two shells overriding their own `max-w-lg` mobile default.
+
+  Gated at 1024px (this app's one true desktop breakpoint, same as every
+  other shell rule in this file) rather than folded into the existing
+  768px split-pane block above — a 768-1023px viewport can't reach either
+  cap, so this is a no-op below 1024px either way.
+
+  Known, accepted side effect: unlike Decisions/Itinerary's fixed 460px
+  list column, .discovery-card-col/.neighborhood-card-col above use a 40%
+  *percentage* split — so this width increase also grows that column
+  proportionally (to ~589px at 1472px, vs. the mockup's fixed 460px).
+  That's a pre-existing split-ratio deviation from the mockup, not
+  introduced or fixed here; changing 60/40 to a fixed px split is a real
+  design decision, out of scope for this content-width correction.
+*/
+@media (min-width: 1024px) {
+  .discovery-shell,
+  .neighborhood-shell {
+    max-width: 1472px;
+  }
+}
+
+/*
   Home hero (design-fidelity fix, 2026-08-23). Ported from the actual
   Web-Home.dc.html desktop mockup (recovered from the published design
   artifact after the local scratchpad copy was cleared) — NOT a split
@@ -384,14 +421,22 @@ body {
   wrapper at that width, contributing no layout change of its own).
 
   .decisions-shell overrides the page's own max-w-lg (Tailwind utility,
-  layered) at desktop so the wider split-pane has room — reusing
-  discovery/page.tsx's max-w-5xl value for consistency. This rule is
+  layered) at desktop so the wider split-pane has room. This rule is
   intentionally unlayered so it reliably wins over the layered max-w-lg
   utility regardless of source order, same reasoning as .web-nav above.
+
+  92rem (not a round number) is deliberate: the desktop mockups
+  (Web-*.dc.html) are all fixed 1440px-wide frames with content spanning
+  edge-to-edge, no outer gutter — so the target is a 1440px *content*
+  region, not a 1440px outer box. Tailwind's border-box means this
+  shell's own p-4 padding (32px total) eats into max-width, so
+  92rem = 1472px = 1440 + 32px padding. Reported directly as "the app is
+  still too narrow on desktop, see design" after a first correction
+  (below, on .tripsetup-shell) under-shot the same target.
 */
 @media (min-width: 1024px) {
   .decisions-shell {
-    max-width: 64rem;
+    max-width: 92rem;
   }
 }
 
@@ -440,6 +485,10 @@ body {
   (unlayered, so it wins regardless of source order per this file's
   top-of-file Cascade Layers note) widens it at desktop to fit the list+map
   columns.
+
+  1472px = 1440 (mockup's fixed frame width, edge-to-edge content, no outer
+  gutter) + 32px (this shell's own p-4 padding, which border-box eats into
+  max-width) — same "1440px content region" math as .decisions-shell above.
 */
 .itinerary-mobile-only {
   display: block;
@@ -451,7 +500,7 @@ body {
 
 @media (min-width: 1024px) {
   .itinerary-shell {
-    max-width: 1120px;
+    max-width: 1472px;
   }
 
   .itinerary-mobile-only {
@@ -495,22 +544,27 @@ body {
   sections just make the form column taller/scrollable; the panel itself
   needs no knowledge of what's in the form.
 
-  CORRECTED: the first version of this block used a narrower 72rem shell
-  with a 560px form column, leaving the art panel under half the shell's
-  width and the whole page letterboxed with far more dead margin than any
-  other desktop page in this app — reported directly as "the page is too
-  narrow and the map is tiny." Checked against what's actually already
-  shipped: Discovery/Neighborhoods use `max-w-5xl` (80rem/1280px, wider
-  than this block's old 72rem) with a 60/40 map/list split (their
-  `.discovery-map-col`/`.neighborhood-map-col`, further up this file).
-  `.tripsetup-shell` now matches that same max-w-5xl width for consistency
-  across the app, and `.tripsetup-form-col` goes back to the mockup's own
-  480px (not the 560px this block over-widened it to) — the extra room the
-  6-section form needs comes from the wider shell freeing up space, not
-  from shrinking the art panel's share of it. Net effect: the art panel
-  goes from under half the shell's width to roughly 60%, matching
-  Discovery's ratio and much closer to Web-TripSetup.dc.html's own ~2:1
-  panel-to-form split at 1440px.
+  CORRECTED (twice now): the first version of this block used a narrower
+  72rem shell with a 560px form column, leaving the art panel under half
+  the shell's width — reported directly as "the page is too narrow and
+  the map is tiny." That was fixed by widening to 80rem (1280px) and
+  resetting the form column to the mockup's own 480px, on the belief that
+  80rem matched Discovery/Neighborhoods' `max-w-5xl`. That belief was
+  wrong: Tailwind v4's `--container-5xl` is 64rem (1024px), not 80rem —
+  so Discovery/Neighborhoods were actually narrower than this shell, not
+  matching it, and all of them were still short of the mockup.
+
+  The real target: every desktop mockup (Web-*.dc.html) is a fixed
+  1440px-wide frame with content spanning edge-to-edge, no outer gutter —
+  so the target is a 1440px *content* region, not an arbitrary "wide
+  enough" number. Tailwind's border-box means this shell's own px-6
+  padding (48px total) eats into max-width, so 93rem = 1488px =
+  1440 + 48px padding. `.tripsetup-form-col` stays at the mockup's 480px;
+  all the added width flows into the flexible art column via flex: 1.
+  Discovery/Neighborhoods/Decisions/Itinerary got the equivalent
+  1440px-content-region correction in the same pass (see their own shell
+  rules) — reported directly as "the app is still too narrow on desktop,
+  see design."
 */
 .tripsetup-art-col {
   display: none;
@@ -518,7 +572,7 @@ body {
 
 @media (min-width: 1024px) {
   .tripsetup-shell {
-    max-width: 80rem;
+    max-width: 93rem;
   }
 
   .tripsetup-layout {
