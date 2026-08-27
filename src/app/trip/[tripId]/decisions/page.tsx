@@ -5,8 +5,6 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
-  Card,
-  CardBody,
   Button,
   Badge,
   Skeleton,
@@ -205,8 +203,15 @@ export default function DecisionsPage() {
               ) : (
                 <>
                   {filtered.map((d) => (
-                    <Card key={d.id}>
-                      <CardBody className="flex items-start justify-between gap-3">
+                    // Plain div with an explicit light card style, not Sumi's
+                    // Card — unlike Neighborhoods/Discovery, Web-Decisions.dc.html
+                    // keeps a real (lighter) bordered card here, so this one
+                    // isn't stripped down to borderless the way those were.
+                    <div
+                      key={d.id}
+                      className="flex items-start justify-between gap-3 p-3 rounded-xl"
+                      style={{ background: "var(--bg-1)", border: "1px solid var(--line-1)" }}
+                    >
                         <div className="shrink-0" style={{ width: "52px", height: "52px" }}>
                           {d.photoReference ? (
                             <img
@@ -264,8 +269,7 @@ export default function DecisionsPage() {
                         >
                           ✕
                         </Button>
-                      </CardBody>
-                    </Card>
+                    </div>
                   ))}
                   <p
                     className="text-xs text-center pt-2"
@@ -292,7 +296,7 @@ export default function DecisionsPage() {
 
             {/* Build schedule CTA */}
             {decisions.length > 0 && (
-              <Button variant="primary" size="lg" className="w-full" asChild>
+              <Button variant="primary" size="lg" className="w-full rounded-xl" asChild>
                 <Link href={`/trip/${params.tripId}/itinerary`}>
                   Build my schedule →
                 </Link>

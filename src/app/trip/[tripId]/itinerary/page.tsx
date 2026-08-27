@@ -357,7 +357,7 @@ export default function ItineraryPage() {
       {error && (
         <Alert variant="danger">
           {error}
-          <Button variant="ghost" size="sm" className="ml-2" onClick={() => { void buildItinerary(); }}>
+          <Button variant="ghost" size="sm" className="ml-2 rounded-xl" onClick={() => { void buildItinerary(); }}>
             Retry
           </Button>
         </Alert>
@@ -382,7 +382,7 @@ export default function ItineraryPage() {
         <>
           <Button
             variant="secondary"
-            className="w-full"
+            className="w-full rounded-xl"
             data-testid="rebuild-btn"
             onClick={() => { void buildItinerary(); }}
           >
@@ -450,8 +450,16 @@ export default function ItineraryPage() {
                 return (
                   <div className="itinerary-desktop-split" data-testid="itinerary-desktop-split">
                     <div className="itinerary-desktop-list-col">
+                      {/* Wraps instead of scrolling, unlike the mobile jump-nav
+                          row below — a fixed 460px sidebar column with no
+                          scrollbar and no fade hint left every day past the
+                          4th genuinely invisible and undiscoverable on a
+                          longer trip (confirmed directly: 11 days, only ~4
+                          fit in view, scrollWidth 1405px vs clientWidth
+                          460px). Horizontal scroll is an expected, discoverable
+                          pattern on mobile touch; it isn't here. */}
                       <div
-                        className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
+                        className="flex flex-wrap gap-2 pb-2"
                         role="group"
                         aria-label="Select day"
                       >
