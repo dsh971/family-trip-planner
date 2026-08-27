@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Card,
-  CardBody,
   Input,
   Button,
   Alert,
@@ -12,8 +10,8 @@ import {
   Skeleton,
 } from "@sumiui/react";
 import { Users, Heart, Clock, CalendarDays, Building2 } from "lucide-react";
-import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
 import TripSetupArt from "@/components/ui/TripSetupArt";
+import TripSetupSectionHeader from "@/components/ui/TripSetupSectionHeader";
 
 interface PacingWindow {
   name: string;
@@ -25,44 +23,6 @@ interface Child {
   age: number;
 }
 
-function SectionHeader({
-  num,
-  icon,
-  title,
-}: {
-  num: number;
-  icon: React.ReactNode;
-  title: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 mb-3">
-      <span
-        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-        style={{ background: "var(--accent)", color: "var(--fg-on-malachite)" }}
-      >
-        {num}
-      </span>
-      <span style={{ color: "var(--accent)" }}>{icon}</span>
-      {/* Design-fidelity fix (2026-08-23): see src/app/profile/page.tsx's
-          identical SectionHeader h2 comment — Sumi's unlayered h2 base rule
-          always beats text-base/font-semibold/tracking-tight. */}
-      <h2
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "1rem",
-          fontWeight: 600,
-          letterSpacing: "-0.025em",
-          lineHeight: 1.375,
-          color: "var(--fg-1)",
-          margin: 0,
-        }}
-      >
-        {title}
-      </h2>
-    </div>
-  );
-}
-
 export default function EditProfilePage() {
   const params = useParams<{ tripId: string }>();
   const tripId = params.tripId;
@@ -71,6 +31,25 @@ export default function EditProfilePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Per-field errors, rendered next to the input they belong to via
+  // Input/DatePicker's own errorText prop — see profile/page.tsx's
+  // identical comment for the create route's version of this.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const KNOWN_ERROR_FIELDS = new Set(["adultCount", "startDate", "endDate", "hotelAddress"]);
+
+  function applyApiErrors(errs: Array<{ field: string; message: string }>) {
+    const map: Record<string, string> = {};
+    const unmapped: string[] = [];
+    for (const e of errs) {
+      if (KNOWN_ERROR_FIELDS.has(e.field) || e.field.startsWith("children[") || e.field.startsWith("pacingWindows")) {
+        map[e.field] = e.message;
+      } else {
+        unmapped.push(`${e.field}: ${e.message}`);
+      }
+    }
+    setFieldErrors(map);
+    setError(unmapped.length > 0 ? unmapped.join("; ") : null);
+  }
 
   const [adultCount, setAdultCount] = useState(2);
   const [children, setChildren] = useState<Child[]>([]);
@@ -127,6 +106,7 @@ export default function EditProfilePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
     setSubmitting(true);
 
     try {
@@ -148,7 +128,8 @@ export default function EditProfilePage() {
 
       if (!res.ok) {
         const json = await res.json() as { errors?: Array<{ field: string; message: string }> };
-        setError(json.errors?.map((e) => `${e.field}: ${e.message}`).join("; ") ?? "Update failed");
+        if (json.errors) applyApiErrors(json.errors);
+        else setError("Update failed");
         return;
       }
 
@@ -172,12 +153,10 @@ export default function EditProfilePage() {
   return (
     <>
         <main
-          className="tripsetup-shell max-w-2xl mx-auto w-full px-6"
-          style={{ paddingTop: "1rem", paddingBottom: "calc(77px + 2rem)" }}
+          className="tripsetup-shell max-w-2xl mx-auto w-full px-6 pt-4 pb-8"
         >
         <div className="tripsetup-layout">
-        <div className="tripsetup-form-col space-y-4" style={{ position: "relative" }}>
-        <EditorialBackdrop variant="light" />
+        <div className="tripsetup-form-col space-y-4">
           <div className="mb-2">
             {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
                 identical h1 comment — Sumi's unlayered h1 base rule always
@@ -200,196 +179,233 @@ export default function EditProfilePage() {
             </p>
           </div>
 
-          <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-4">
+          <form onSubmit={(e) => { void handleSubmit(e); }} className="space-y-6">
             {/* 1. Family Composition */}
-            <Card>
-              <CardBody className="space-y-3">
-                <SectionHeader num={1} icon={<Users size={16} />} title="Family Composition" />
-                <Input
-                  label="Adults"
-                  type="number"
-                  min={1}
-                  value={String(adultCount)}
-                  onChange={(e) => setAdultCount(Number(e.target.value))}
-                  className="w-24"
-                />
-                <div className="space-y-2">
-                  <p className="text-sm font-medium" style={{ color: "var(--fg-2)" }}>Children (ages)</p>
-                  {children.map((child, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input
-                        label={`Child ${i + 1} age`}
-                        type="number"
-                        min={0}
-                        max={17}
-                        value={String(child.age)}
-                        onChange={(e) => {
-                          const updated = [...children];
-                          updated[i] = { age: Number(e.target.value) };
-                          setChildren(updated);
-                        }}
-                        className="w-24"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setChildren(children.filter((_, j) => j !== i))}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setChildren([...children, { age: 0 }])}
-                  >
-                    + Add child
-                  </Button>
-                </div>
-              </CardBody>
-            </Card>
-
-            {/* 2. Needs */}
-            <Card>
-              <CardBody className="space-y-3">
-                <SectionHeader num={2} icon={<Heart size={16} />} title="Dietary & Accessibility Needs" />
-                <Input
-                  label="Dietary tags (comma-separated)"
-                  value={dietaryTags}
-                  onChange={(e) => setDietaryTags(e.target.value)}
-                  placeholder="e.g. vegetarian, nut-allergy"
-                />
-                <Input
-                  label="Accessibility needs (comma-separated)"
-                  value={accessibilityTags}
-                  onChange={(e) => setAccessibilityTags(e.target.value)}
-                  placeholder="e.g. stroller, wheelchair"
-                />
-              </CardBody>
-            </Card>
-
-            {/* 3. Pacing Blocks */}
-            <Card>
-              <CardBody className="space-y-3">
-                <SectionHeader num={3} icon={<Clock size={16} />} title="Daily Pacing Blocks" />
-                {pacingWindows.map((w, i) => (
-                  <div key={i} className="flex items-center gap-2 flex-wrap">
+            <div className="space-y-3">
+              <TripSetupSectionHeader num={1} icon={<Users size={16} />} title="Family Composition" />
+              <Input
+                label="Adults"
+                type="number"
+                min={1}
+                value={String(adultCount)}
+                onChange={(e) => setAdultCount(Number(e.target.value))}
+                errorText={fieldErrors.adultCount}
+                className="w-24 bg-bg-card rounded-xl h-12 px-3.5"
+              />
+              <div className="space-y-2">
+                <p className="text-sm font-medium" style={{ color: "var(--fg-2)" }}>Children (ages)</p>
+                {children.map((child, i) => (
+                  <div key={i} className="flex items-center gap-2">
                     <Input
-                      label="Name"
-                      value={w.name}
+                      label={`Child ${i + 1} age`}
+                      type="number"
+                      min={0}
+                      max={17}
+                      value={String(child.age)}
                       onChange={(e) => {
-                        const updated = [...pacingWindows];
-                        updated[i] = { ...w, name: e.target.value };
-                        setPacingWindows(updated);
+                        const updated = [...children];
+                        updated[i] = { age: Number(e.target.value) };
+                        setChildren(updated);
                       }}
-                      placeholder="name"
-                      className="w-28"
+                      errorText={fieldErrors[`children[${i}].age`]}
+                      className="w-24 bg-bg-card rounded-xl h-12 px-3.5"
                     />
-                    <Input
-                      label="Start"
-                      type="time"
-                      value={w.startTime}
-                      onChange={(e) => {
-                        const updated = [...pacingWindows];
-                        updated[i] = { ...w, startTime: e.target.value };
-                        setPacingWindows(updated);
-                      }}
-                      className="w-32"
-                    />
-                    <Input
-                      label="End"
-                      type="time"
-                      value={w.endTime}
-                      onChange={(e) => {
-                        const updated = [...pacingWindows];
-                        updated[i] = { ...w, endTime: e.target.value };
-                        setPacingWindows(updated);
-                      }}
-                      className="w-32"
-                    />
-                    <Button
+                    <button
                       type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPacingWindows(pacingWindows.filter((_, j) => j !== i))}
+                      onClick={() => setChildren(children.filter((_, j) => j !== i))}
+                      className="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                      style={{ background: "transparent", color: "var(--fg-2)", border: "1px solid var(--line-2)" }}
                     >
                       Remove
-                    </Button>
+                    </button>
                   </div>
                 ))}
-                <Button
+                <button
                   type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setPacingWindows([...pacingWindows, { name: "", startTime: "12:00", endTime: "13:00" }])}
+                  onClick={() => setChildren([...children, { age: 0 }])}
+                  className="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                  style={{ background: "transparent", color: "var(--fg-2)", border: "1px solid var(--line-2)" }}
                 >
-                  + Add pacing block
-                </Button>
-              </CardBody>
-            </Card>
+                  + Add child
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Needs */}
+            <div className="space-y-3">
+              <TripSetupSectionHeader num={2} icon={<Heart size={16} />} title="Dietary & Accessibility Needs" />
+              <Input
+                label="Dietary tags (comma-separated)"
+                value={dietaryTags}
+                onChange={(e) => setDietaryTags(e.target.value)}
+                placeholder="e.g. vegetarian, nut-allergy"
+                className="bg-bg-card rounded-xl h-12 px-3.5"
+              />
+              <Input
+                label="Accessibility needs (comma-separated)"
+                value={accessibilityTags}
+                onChange={(e) => setAccessibilityTags(e.target.value)}
+                placeholder="e.g. stroller, wheelchair"
+                className="bg-bg-card rounded-xl h-12 px-3.5"
+              />
+            </div>
+
+            {/* 3. Pacing Blocks */}
+            <div className="space-y-3">
+              <TripSetupSectionHeader num={3} icon={<Clock size={16} />} title="Daily Pacing Blocks" />
+              {pacingWindows.map((w, i) => (
+                <div key={i} className="flex items-center gap-2 flex-wrap">
+                  <Input
+                    label="Name"
+                    value={w.name}
+                    onChange={(e) => {
+                      const updated = [...pacingWindows];
+                      updated[i] = { ...w, name: e.target.value };
+                      setPacingWindows(updated);
+                    }}
+                    placeholder="name"
+                    className="w-28 bg-bg-card rounded-xl h-12 px-3.5"
+                  />
+                  <Input
+                    label="Start"
+                    type="time"
+                    value={w.startTime}
+                    onChange={(e) => {
+                      const updated = [...pacingWindows];
+                      updated[i] = { ...w, startTime: e.target.value };
+                      setPacingWindows(updated);
+                    }}
+                    errorText={fieldErrors[`pacingWindows[${i}]`]}
+                    className="w-32 bg-bg-card rounded-xl h-12 px-3.5"
+                  />
+                  <Input
+                    label="End"
+                    type="time"
+                    value={w.endTime}
+                    onChange={(e) => {
+                      const updated = [...pacingWindows];
+                      updated[i] = { ...w, endTime: e.target.value };
+                      setPacingWindows(updated);
+                    }}
+                    className="w-32 bg-bg-card rounded-xl h-12 px-3.5"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPacingWindows(pacingWindows.filter((_, j) => j !== i))}
+                    className="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                    style={{ background: "transparent", color: "var(--fg-2)", border: "1px solid var(--line-2)" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setPacingWindows([...pacingWindows, { name: "", startTime: "12:00", endTime: "13:00" }])}
+                className="rounded-full px-4 py-2 text-sm font-medium transition-colors"
+                style={{ background: "transparent", color: "var(--fg-2)", border: "1px solid var(--line-2)" }}
+              >
+                + Add pacing block
+              </button>
+              {fieldErrors.pacingWindows && (
+                <p className="mt-1 text-xs" style={{ color: "var(--status-danger)" }} role="alert">
+                  {fieldErrors.pacingWindows}
+                </p>
+              )}
+            </div>
 
             {/* 4. Trip Dates */}
-            <Card>
-              <CardBody className="space-y-3">
-                <SectionHeader num={4} icon={<CalendarDays size={16} />} title="Trip Dates" />
-                <div className="flex gap-4 flex-wrap">
-                  <DatePicker
-                    label="Start date"
-                    value={startDate ?? ""}
-                    onChange={(v) => setStartDate(v || undefined)}
-                  />
-                  <DatePicker
-                    label="End date"
-                    value={endDate ?? ""}
-                    onChange={(v) => setEndDate(v || undefined)}
-                  />
-                </div>
-              </CardBody>
-            </Card>
+            <div className="space-y-3">
+              <TripSetupSectionHeader num={4} icon={<CalendarDays size={16} />} title="Trip Dates" />
+              <div className="flex gap-4 flex-wrap tripsetup-date-pill">
+                <DatePicker
+                  label="Start date"
+                  value={startDate ?? ""}
+                  onChange={(v) => setStartDate(v || undefined)}
+                  errorText={fieldErrors.startDate}
+                />
+                <DatePicker
+                  label="End date"
+                  value={endDate ?? ""}
+                  onChange={(v) => setEndDate(v || undefined)}
+                  errorText={fieldErrors.endDate}
+                />
+              </div>
+            </div>
 
             {/* 5. Hotel */}
-            <Card>
-              <CardBody className="space-y-3">
-                <SectionHeader num={5} icon={<Building2 size={16} />} title="Pre-Booked Hotel" />
-                <p className="text-xs" style={{ color: "var(--fg-3)" }}>Optional — helps us optimize your walking routes.</p>
-                <Input
-                  label="Hotel name"
-                  value={hotelName}
-                  onChange={(e) => setHotelName(e.target.value)}
-                  placeholder="e.g. Park Hyatt Tokyo"
-                />
-                <Input
-                  label="Hotel address"
-                  value={hotelAddress}
-                  onChange={(e) => setHotelAddress(e.target.value)}
-                  placeholder="e.g. 3-7-1-2 Nishi Shinjuku"
-                />
-                {hotelName && (
-                  <label
-                    className="flex items-start gap-2 cursor-pointer"
-                    style={{ paddingTop: "4px" }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={staysEntireTrip}
-                      onChange={(e) => setStaysEntireTrip(e.target.checked)}
-                      style={{ marginTop: "2px", accentColor: "var(--accent)", flexShrink: 0 }}
-                    />
-                    <span className="text-sm" style={{ color: "var(--fg-2)" }}>
-                      We'll be staying here for the whole trip
-                      <span className="block text-xs mt-0.5" style={{ color: "var(--fg-3)" }}>
-                        Uncheck if you have multiple accommodations — we'll use the neighborhood center for distance estimates instead.
-                      </span>
+            <div className="space-y-3">
+              <TripSetupSectionHeader num={5} icon={<Building2 size={16} />} title="Pre-Booked Hotel" />
+              <p className="text-xs" style={{ color: "var(--fg-3)" }}>Optional — helps us optimize your walking routes.</p>
+              <Input
+                label="Hotel name"
+                value={hotelName}
+                onChange={(e) => setHotelName(e.target.value)}
+                placeholder="e.g. Park Hyatt Tokyo"
+                className="bg-bg-card rounded-xl h-12 px-3.5"
+              />
+              <Input
+                label="Hotel address"
+                value={hotelAddress}
+                onChange={(e) => setHotelAddress(e.target.value)}
+                placeholder="e.g. 3-7-1-2 Nishi Shinjuku"
+                errorText={fieldErrors.hotelAddress}
+                className="bg-bg-card rounded-xl h-12 px-3.5"
+              />
+              {hotelName && (
+                <label
+                  className="flex items-start gap-2 cursor-pointer"
+                  style={{ paddingTop: "4px" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={staysEntireTrip}
+                    onChange={(e) => setStaysEntireTrip(e.target.checked)}
+                    style={{ marginTop: "2px", accentColor: "var(--accent)", flexShrink: 0 }}
+                  />
+                  <span className="text-sm" style={{ color: "var(--fg-2)" }}>
+                    We'll be staying here for the whole trip
+                    <span className="block text-xs mt-0.5" style={{ color: "var(--fg-3)" }}>
+                      Uncheck if you have multiple accommodations — we'll use the neighborhood center for distance estimates instead.
                     </span>
-                  </label>
-                )}
-              </CardBody>
-            </Card>
+                  </span>
+                </label>
+              )}
+            </div>
 
             {error && <Alert variant="danger">{error}</Alert>}
+
+            {/* In-flow now, not a fixed bottom bar — Save changes is a real
+                descendant of this form, so type="submit" triggers onSubmit
+                natively; no more form="" + manual
+                document.querySelector("form") relay. */}
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                className="flex-1 rounded-xl"
+                // Fixed destination, not router.back() — this page's WebNav
+                // "Trip setup" tab is reachable from every other trip page
+                // (Discover, Decisions, Itinerary, Neighborhoods), so
+                // history-based back replays wherever the traveler happened
+                // to arrive from rather than a predictable place. Same
+                // reasoning AppHeader.tsx's backHref already documents for
+                // its own back arrow; Cancel just hadn't followed it yet.
+                onClick={() => router.push(`/trip/${tripId}/neighborhoods`)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                loading={submitting}
+                className="flex-1 rounded-xl"
+              >
+                {submitting ? "Saving…" : "Save changes"}
+              </Button>
+            </div>
           </form>
         </div>
         <TripSetupArt
@@ -398,44 +414,6 @@ export default function EditProfilePage() {
         />
         </div>
         </main>
-
-      {/* Fixed CTA bar — sits above the 4rem bottom nav on mobile; flush
-          with the viewport bottom at >=1024px, where BottomNav is hidden
-          and WebNav (top-only) doesn't occupy any bottom space — see
-          `.trip-cta-inset` in globals.css. Design-fidelity fix
-          (2026-08-23): see AppHeader.tsx's identical comment — right-0
-          produces no CSS rule anywhere in this project. */}
-      <div
-        className="trip-cta-inset fixed left-0 p-4 z-50"
-        style={{ right: 0, background: "var(--bg-0)", borderTop: "1px solid var(--line-1)" }}
-      >
-        <div className="max-w-2xl mx-auto flex gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            className="flex-1"
-            onClick={() => router.back()}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            form=""
-            variant="primary"
-            size="lg"
-            loading={submitting}
-            className="flex-1"
-            onClick={(e) => {
-              e.preventDefault();
-              const form = document.querySelector("form");
-              form?.requestSubmit();
-            }}
-          >
-            {submitting ? "Saving…" : "Save changes"}
-          </Button>
-        </div>
-      </div>
     </>
   );
 }

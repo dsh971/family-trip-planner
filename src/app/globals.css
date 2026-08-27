@@ -84,6 +84,23 @@
 }
 
 /*
+  Same missing-generation bug as the file-header comment describes, one
+  specific instance of it: Sumi's Input/Textarea/DatePicker render their
+  `errorText` prop through the literal class `text-[color:var(--status-
+  danger)]`. That string exists only inside Sumi's own compiled bundle
+  (index.js), never as a literal string in this project's .tsx files (no
+  page called `errorText` until this one), so this project's @source scan
+  had nothing to generate CSS from. Verified directly: the class renders on
+  the DOM node, but zero CSS rule for it exists anywhere in the page's
+  loaded stylesheets — every errorText message was rendering in the default
+  ink color instead of red, silently, since Input/DatePicker shipped.
+  Redeclared here by hand, same fix shape as the --container-* block above.
+*/
+.text-\[color\:var\(--status-danger\)\] {
+  color: var(--status-danger);
+}
+
+/*
   Viridian accent palette (rebrand plan, docs/plans/2026-08-23-001-feat-
   viridian-rebrand-plan.md, U2). Overrides only the four top-level semantic
   accent tokens — --malachite-*, its --jade-* alias, and --status-success
@@ -208,18 +225,40 @@ body {
   768px split-pane block above — a 768-1023px viewport can't reach either
   cap, so this is a no-op below 1024px either way.
 
-  Known, accepted side effect: unlike Decisions/Itinerary's fixed 460px
-  list column, .discovery-card-col/.neighborhood-card-col above use a 40%
-  *percentage* split — so this width increase also grows that column
-  proportionally (to ~589px at 1472px, vs. the mockup's fixed 460px).
-  That's a pre-existing split-ratio deviation from the mockup, not
-  introduced or fixed here; changing 60/40 to a fixed px split is a real
-  design decision, out of scope for this content-width correction.
+  CORRECTED AGAIN, same fix as .tripsetup-shell/.decisions-shell/
+  .itinerary-shell's "CORRECTED AGAIN" notes: 1472px still caps the shell,
+  verified at 1920px leaving a 224px dead gutter each side. But this pair
+  can't just get `max-width: none` the way those three did — the "known,
+  accepted side effect" above is exactly why: .discovery-card-col/
+  .neighborhood-card-col use a 40% *percentage* split, so an uncapped
+  shell would grow the list column to a genuinely broken width (40% of
+  2560px = 1024px of list column). Deferred as "out of scope" when this
+  was just a content-width correction; revisited now that a real width
+  discrepancy against the fixed-460px pages (Decisions/Itinerary/Trip
+  setup) was reported directly. Fixed properly this time: matches
+  Web-Neighborhoods.dc.html/Web-Discovery.dc.html's own literal
+  `width:460px` list column — not a new number invented here — with the
+  map column taking `flex: 1` to absorb whatever's left, same shape as
+  every other uncapped shell. Only overridden at >=1024px; the 768-1023px
+  tablet range keeps the original 60/40 percentage split from the block
+  above, since that range was never part of the capped-shell problem.
 */
 @media (min-width: 1024px) {
   .discovery-shell,
   .neighborhood-shell {
-    max-width: 1472px;
+    max-width: none;
+  }
+
+  .discovery-card-col,
+  .neighborhood-card-col {
+    width: 460px;
+    flex-shrink: 0;
+  }
+
+  .discovery-map-col,
+  .neighborhood-map-col {
+    width: auto;
+    flex: 1;
   }
 }
 
@@ -392,22 +431,6 @@ body {
 }
 
 /*
-  src/app/trip/[tripId]/profile/page.tsx's fixed CTA bar sits 4rem above
-  the bottom edge on mobile to clear BottomNav. At >=1024px BottomNav is
-  hidden and WebNav doesn't occupy any bottom space, so the CTA bar can sit
-  flush with the viewport bottom.
-*/
-.trip-cta-inset {
-  bottom: 4rem;
-}
-
-@media (min-width: 1024px) {
-  .trip-cta-inset {
-    bottom: 0;
-  }
-}
-
-/*
   Decisions split-pane (U6, plan 2026-08-23-002-feat-hybrid-design-fidelity-
   gaps). Same "static layout, CSS-only breakpoint toggle" technique as
   .discovery-layout/.neighborhood-layout and .mobile-chrome/.web-nav above,
@@ -433,10 +456,19 @@ body {
   92rem = 1472px = 1440 + 32px padding. Reported directly as "the app is
   still too narrow on desktop, see design" after a first correction
   (below, on .tripsetup-shell) under-shot the same target.
+
+  CORRECTED AGAIN, same fix as .tripsetup-shell's "CORRECTED AGAIN" note:
+  92rem still caps the shell, which only reads as full-width up to 1472px
+  — verified at 1920px, a 224px dead gutter appeared on each side (same
+  measurement approach as the tripsetup fix). `.decisions-list-col` is
+  already a fixed 460px (not a percentage), so uncapping here is a direct,
+  safe mirror of the tripsetup fix: the list column stays put, the map
+  column (`flex: 1`, below) absorbs whatever width the browser actually
+  has.
 */
 @media (min-width: 1024px) {
   .decisions-shell {
-    max-width: 92rem;
+    max-width: none;
   }
 }
 
@@ -499,8 +531,12 @@ body {
 }
 
 @media (min-width: 1024px) {
+  /* Same "CORRECTED AGAIN" fix as .tripsetup-shell/.decisions-shell: a
+     fixed cap only reads as full-width up to 1472px, verified at 1920px
+     leaving a 224px dead gutter each side. .itinerary-desktop-list-col is
+     already fixed 460px, so uncapping here is a direct, safe mirror. */
   .itinerary-shell {
-    max-width: 1472px;
+    max-width: none;
   }
 
   .itinerary-mobile-only {
@@ -565,6 +601,22 @@ body {
   1440px-content-region correction in the same pass (see their own shell
   rules) — reported directly as "the app is still too narrow on desktop,
   see design."
+
+  CORRECTED AGAIN: 93rem still caps the shell, which only reads as "full
+  page" on a viewport at or under 1488px. Verified directly at 1920px and
+  2560px (both realistic desktop widths, not edge cases): the shell held
+  at 1488px and centered via the JSX's `mx-auto`, leaving 216px/536px of
+  dead gutter on each side — reported directly as "this doesn't look
+  done" against a screenshot showing exactly that gutter. The 1440px
+  mockup is a fixed design-canvas frame, not a live viewport; matching it
+  literally as a cap fights the "full page" ask instead of satisfying it.
+  `max-width: none` (not just deleting the rule — this class is
+  intentionally unlayered so it keeps beating the JSX's layered
+  `max-w-2xl` utility class; a plain deletion would let `max-w-2xl` win
+  again) lets the art column's `flex: 1` fill whatever width the browser
+  actually has, at any size, which is what "full page" means for a live
+  responsive app. `.tripsetup-form-col` is unaffected — still a fixed
+  480px, matching the mockup's own form-column width.
 */
 .tripsetup-art-col {
   display: none;
@@ -572,7 +624,7 @@ body {
 
 @media (min-width: 1024px) {
   .tripsetup-shell {
-    max-width: 93rem;
+    max-width: none;
   }
 
   .tripsetup-layout {
@@ -601,6 +653,32 @@ body {
 }
 
 /*
+  25px margin around both panels (list/form column + map column), all five
+  trip-flow shells — requested directly after the full-bleed width fixes
+  above, so the two panels don't sit flush against the viewport edge now
+  that nothing caps the shell's width. `padding: 8px` (not margin, so it
+  doesn't collapse against the shell's own background) replaces each
+  shell's previous mismatched padding (Trip setup's px-6/pt-4/pb-8,
+  Neighborhoods' p-4/pt-6/pb-20, Discovery/Itinerary's p-4, Decisions'
+  p-4/pb-24) — all of those were layered Tailwind utilities except Trip
+  setup's, which used to be an inline style (moved to classes above
+  specifically so this unlayered rule can win over it the same way it
+  wins over the others). The larger bottom paddings on Neighborhoods/
+  Decisions existed to clear BottomNav, which is already hidden at this
+  same >=1024px breakpoint, so overriding them here doesn't lose that
+  clearance.
+*/
+@media (min-width: 1024px) {
+  .tripsetup-shell,
+  .neighborhood-shell,
+  .discovery-shell,
+  .decisions-shell,
+  .itinerary-shell {
+    padding: 25px;
+  }
+}
+
+/*
   Unlike .decisions-map-col/.itinerary-desktop-map-col (where a Leaflet
   component supplies the real content and bg-2 above is just a loading-
   state fallback color sitting behind it), this panel's entire content IS
@@ -614,6 +692,28 @@ body {
 */
 .tripsetup-art-col .editorial-backdrop {
   z-index: 0;
+}
+
+/*
+  Sumi's DatePicker trigger button accepts no className/style override (its
+  destructure has no such prop, verified against node_modules/@sumiui/react/
+  dist/index.js — passing className is a silent no-op). Restyled via a
+  scoped attribute selector instead, targeting the trigger by its
+  aria-haspopup="dialog" contract rather than a Sumi-internal class name.
+
+  Uses --sumi-font-mono directly, not the app's own --font-mono: Tailwind's
+  theme.css also declares a --font-mono (its own generic monospace stack),
+  and it wins the cascade over Sumi's `--font-mono: var(--sumi-font-mono)`
+  for this custom property — verified via computed style, which resolved to
+  Tailwind's stack instead of JetBrains Mono until this was pointed at the
+  unambiguous Sumi token instead.
+*/
+.tripsetup-date-pill button[aria-haspopup="dialog"] {
+  background: var(--bg-1);
+  border-color: var(--line-2);
+  border-radius: var(--radius-xl);
+  height: 48px;
+  font-family: var(--sumi-font-mono);
 }
 
 @layer utilities {

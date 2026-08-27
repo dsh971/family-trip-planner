@@ -61,7 +61,13 @@ export default function TripSetupArt({
   }, [destinationName, destinationCountry]);
 
   return (
-    <div className="tripsetup-art-col" style={{ position: "relative" }}>
+    // No inline `position` override here — `.tripsetup-art-col` (globals.css)
+    // sets `position: sticky`, which already establishes a containing block
+    // for the hint bar's `position: absolute` below, same as `relative`
+    // would. An inline `position: relative` used to sit here and silently
+    // clobber the class's sticky (inline styles beat CSS classes), which is
+    // why the panel scrolled away with the page instead of sticking.
+    <div className="tripsetup-art-col">
       {coords ? (
         <DestinationPreviewMap lat={coords.lat} lng={coords.lng} />
       ) : (

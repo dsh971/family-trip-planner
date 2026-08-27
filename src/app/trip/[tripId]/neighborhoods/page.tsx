@@ -4,9 +4,6 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  Card,
-  CardBody,
-  CardFooter,
   Button,
   Alert,
   Skeleton,
@@ -156,16 +153,22 @@ function NeighborhoodCard({
 }) {
   return (
     <div ref={cardRef} onMouseEnter={onHover} onMouseLeave={onLeave}>
-      <Card
+      {/* Plain div, not Sumi's Card — matching Web-Neighborhoods.dc.html's
+          borderless row (no default border/shadow), unlike Trip setup's
+          cards this one still carries real state (selected/hovered), so
+          that conditional styling moved here from Card's old style prop
+          rather than getting dropped along with the border. */}
+      <div
+        className="rounded-xl transition-colors"
         style={
           selected
-            ? { borderColor: "var(--accent)", background: "var(--bg-1)" }
+            ? { border: "1px solid var(--accent)", background: "var(--bg-1)" }
             : hovered
-              ? { borderColor: "var(--line-2)" }
-              : {}
+              ? { border: "1px solid var(--line-2)" }
+              : { border: "1px solid transparent" }
         }
       >
-        <CardBody className="space-y-2">
+        <div className="space-y-2 p-4">
           {/* Header row: thumbnail + rank + name + safety badge. Neighborhoods
               have no Google Places photo of their own (unlike individual
               places), so this is always the deterministic gradient fallback —
@@ -259,13 +262,13 @@ function NeighborhoodCard({
               </p>
             </details>
           )}
-        </CardBody>
-        <CardFooter>
-          <Button variant="primary" size="sm" loading={submitting} onClick={onSelect}>
-            Explore this area →
-          </Button>
-        </CardFooter>
-      </Card>
+          <div className="pt-2">
+            <Button variant="primary" size="sm" className="rounded-xl" loading={submitting} onClick={onSelect}>
+              Explore this area →
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

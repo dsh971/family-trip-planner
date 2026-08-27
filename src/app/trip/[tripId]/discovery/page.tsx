@@ -4,8 +4,6 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
-  Card,
-  CardBody,
   Button,
   Badge,
   Alert,
@@ -209,8 +207,9 @@ function PlaceCard({
 
   if (currentDecision === "no") {
     return (
-      <Card style={{ opacity: 0.45 }}>
-        <CardBody>
+      // Plain div, not Sumi's Card — matching Web-Discovery.dc.html's
+      // borderless row. opacity carries the "skipped" state, same as before.
+      <div className="rounded-xl p-3" style={{ opacity: 0.45, border: "1px solid transparent" }}>
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm truncate" style={{ color: "var(--fg-3)" }}>{place.name}</span>
             <div className="flex items-center gap-2 shrink-0">
@@ -231,22 +230,24 @@ function PlaceCard({
               </button>
             </div>
           </div>
-        </CardBody>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card
+    // Plain div, not Sumi's Card — matching Web-Discovery.dc.html's
+    // borderless row. highlighted/decided state carries over from Card's
+    // old conditional style prop, same border-color logic as before.
+    <div
+      className="rounded-xl p-3"
       style={
         isHighlighted
-          ? { borderColor: "var(--accent)", borderWidth: "2px" }
+          ? { border: "2px solid var(--accent)" }
           : currentDecision === "yes"
-            ? { borderColor: "var(--accent)" }
-            : {}
+            ? { border: "1px solid var(--accent)" }
+            : { border: "1px solid transparent" }
       }
     >
-      <CardBody className="p-3">
         <div className="flex gap-3">
           {/* Thumbnail */}
           <div className="shrink-0" style={{ width: "96px", height: "96px" }}>
@@ -337,7 +338,7 @@ function PlaceCard({
                 <Button
                   variant="primary"
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 rounded-xl"
                   style={{ minHeight: "36px" }}
                   onClick={() => onDecide(place.placeId, "yes", place.worthTheDetour)}
                 >
@@ -346,6 +347,7 @@ function PlaceCard({
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="rounded-xl"
                   style={{ minHeight: "36px", padding: "0 12px" }}
                   onClick={() => onDecide(place.placeId, "no", place.worthTheDetour)}
                 >
@@ -360,8 +362,7 @@ function PlaceCard({
             )}
           </div>
         </div>
-      </CardBody>
-    </Card>
+    </div>
   );
 }
 
@@ -551,7 +552,7 @@ export default function DiscoveryPage() {
   return (
     <main
       className="discovery-shell max-w-5xl mx-auto p-4 space-y-4"
-      style={{ paddingBottom: addedCount >= 1 ? "140px" : undefined, position: "relative" }}
+      style={{ position: "relative" }}
     >
       <EditorialBackdrop variant="light" />
 
@@ -745,6 +746,43 @@ export default function DiscoveryPage() {
                 {isResearching && !hasFinal && <PlaceCardSkeleton />}
               </div>
 
+              {/* In-flow now, not a fixed bottom bar — same fix Trip setup's
+                  CTA got. Was position:fixed/full-bleed regardless of scroll
+                  position; now it's the next thing after the card list. */}
+              {addedCount >= 1 && (
+                <div
+                  className="rounded-xl mt-4"
+                  style={{
+                    background: "var(--accent)",
+                    color: "var(--fg-on-malachite)",
+                    padding: "12px 16px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
+                    <span style={{ fontFamily: "var(--font-mono)" }}>{addedCount}</span>{" "}
+                    {addedCount === 1 ? "place" : "places"} added
+                  </span>
+                  <button
+                    onClick={() => router.push(`/trip/${tripId}/itinerary`)}
+                    className="rounded-xl"
+                    style={{
+                      background: "rgba(255,255,255,0.2)",
+                      border: "1px solid rgba(255,255,255,0.4)",
+                      padding: "6px 14px",
+                      color: "inherit",
+                      fontWeight: 600,
+                      fontSize: "0.875rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Build my schedule →
+                  </button>
+                </div>
+              )}
+
               {/* Disabled while the SSE research run is still active (code review
                   finding, 2026-08-21): clicking mid-stream used to call POST
                   /api/discovery directly, which — since the neighborhood's
@@ -776,45 +814,6 @@ export default function DiscoveryPage() {
             </div>
           </div>
         </>
-      )}
-
-      {addedCount >= 1 && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "64px",
-            left: 0,
-            right: 0,
-            background: "var(--accent)",
-            color: "var(--fg-on-malachite)",
-            padding: "12px 16px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            zIndex: 40,
-            boxShadow: "0 -2px 8px rgba(0,0,0,0.12)",
-          }}
-        >
-          <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-            <span style={{ fontFamily: "var(--font-mono)" }}>{addedCount}</span>{" "}
-            {addedCount === 1 ? "place" : "places"} added
-          </span>
-          <button
-            onClick={() => router.push(`/trip/${tripId}/itinerary`)}
-            style={{
-              background: "rgba(255,255,255,0.2)",
-              border: "1px solid rgba(255,255,255,0.4)",
-              borderRadius: "6px",
-              padding: "6px 14px",
-              color: "inherit",
-              fontWeight: 600,
-              fontSize: "0.875rem",
-              cursor: "pointer",
-            }}
-          >
-            Build my schedule →
-          </button>
-        </div>
       )}
 
       {lightboxRef && (
