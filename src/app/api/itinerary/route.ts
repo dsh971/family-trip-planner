@@ -81,6 +81,9 @@ export async function POST(request: Request) {
       lat: places.lat,
       lng: places.lng,
       photoReference: places.photoReference,
+      // Added for the peek preview (U9, plan 2026-09-12-001).
+      priceLevel: places.priceLevel,
+      description: places.description,
     })
     .from(decisions)
     .leftJoin(places, eq(decisions.placeId, places.id))
@@ -99,6 +102,8 @@ export async function POST(request: Request) {
       lat: d.lat,
       lng: d.lng,
       photoReference: d.photoReference,
+      priceLevel: d.priceLevel,
+      description: d.description,
     }));
 
   const visitDecisions: DecisionItem[] = decisionRows
@@ -113,6 +118,8 @@ export async function POST(request: Request) {
       lat: d.lat,
       lng: d.lng,
       photoReference: d.photoReference,
+      priceLevel: d.priceLevel,
+      description: d.description,
     }));
 
   const schedule = distributeDecisions({

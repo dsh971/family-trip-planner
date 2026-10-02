@@ -11,8 +11,9 @@ import {
   Alert,
   EmptyState,
 } from "@sumiui/react";
-import { Utensils, Landmark } from "lucide-react";
+import { Utensils, Landmark, ExternalLink } from "lucide-react";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import PlacePeek from "@/components/ui/PlacePeek";
 import { getPlaceGradient } from "@/lib/placeGradient";
 
 // Reused directly from Discovery (U6, plan 2026-08-23-002) rather than
@@ -38,6 +39,7 @@ interface DecisionRow {
   rating: number | null;
   priceLevel: number | null;
   photoReference: string | null;
+  description: string | null;
 }
 
 interface DecisionsResponse {
@@ -59,6 +61,7 @@ export default function DecisionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterValue>("eat");
+  const [openPeekId, setOpenPeekId] = useState<number | null>(null);
 
   const loadDecisions = useCallback(async () => {
     try {
@@ -110,7 +113,7 @@ export default function DecisionsPage() {
     }));
 
   return (
-    <main className="decisions-shell max-w-lg mx-auto p-4 space-y-4 pb-24" style={{ position: "relative" }}>
+    <main className="decisions-shell max-w-lg mx-auto p-4 space-y-4" style={{ position: "relative" }}>
       <EditorialBackdrop variant="light" />
       <div>
         {/* Design-fidelity fix (2026-08-23): see neighborhoods/page.tsx's
@@ -166,7 +169,7 @@ export default function DecisionsPage() {
         <div className="decisions-layout">
           {/* List — first in DOM: the only thing rendered on mobile (map is
               CSS-hidden below 1024px), ~460px left column on desktop. */}
-          <div className="decisions-list-col space-y-4">
+          <div className="decisions-list-col space-y-4 pb-8">
             {/* Pill filters */}
             <div
               className="flex gap-2 overflow-x-auto pb-2 scrollbar-none"
@@ -212,19 +215,38 @@ export default function DecisionsPage() {
                       className="flex items-start justify-between gap-3 p-3 rounded-xl"
                       style={{ background: "var(--bg-1)", border: "1px solid var(--line-1)" }}
                     >
-                        <div className="shrink-0" style={{ width: "52px", height: "52px" }}>
-                          {d.photoReference ? (
+                        {/* Thumbnail — gradient + category icon render unconditionally
+                            (docs/plans/2026-09-12-001-fix-design-audit-bugs-plan.md
+                            U1, U6) so a failed or absent photo degrades to a
+                            category-labeled block instead of an empty slot or a
+                            flat abstract gradient. */}
+                        <div
+                          className="shrink-0"
+                          style={{
+                            width: "52px",
+                            height: "52px",
+                            borderRadius: "8px",
+                            background: getPlaceGradient(d.placeGoogleId ?? d.placeName),
+                            overflow: "hidden",
+                            position: "relative",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          aria-hidden="true"
+                        >
+                          {d.category === "eat" ? (
+                            <Utensils size={16} style={{ color: "rgba(255,255,255,0.85)" }} />
+                          ) : (
+                            <Landmark size={16} style={{ color: "rgba(255,255,255,0.85)" }} />
+                          )}
+                          {d.photoReference && (
                             <img
                               src={`/api/places/photo?ref=${encodeURIComponent(d.photoReference)}&width=104`}
                               alt=""
                               loading="lazy"
-                              style={{ width: "52px", height: "52px", objectFit: "cover", borderRadius: "8px", display: "block" }}
-                              onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
-                            />
-                          ) : (
-                            <div
-                              style={{ width: "52px", height: "52px", borderRadius: "8px", background: getPlaceGradient(d.placeGoogleId ?? d.placeName) }}
-                              aria-hidden="true"
+                              style={{ position: "absolute", inset: 0, width: "52px", height: "52px", objectFit: "cover", display: "block" }}
+                              onError={(e) => { e.currentTarget.style.display = "none"; }}
                             />
                           )}
                         </div>
@@ -260,6 +282,32 @@ export default function DecisionsPage() {
                               </span>
                             )}
                           </div>
+                          {/* In-app peek preview (U9, plan 2026-09-12-001),
+                              replacing the plain external link U7 shipped —
+                              see PlacePeek for why the content is what it is. */}
+                          {d.placeGoogleId && (
+                            <div style={{ position: "relative" }}>
+                              <button
+                                type="button"
+                                onClick={() => setOpenPeekId((v) => (v === d.id ? null : d.id))}
+                                className="inline-flex items-center gap-1 text-xs w-fit"
+                                style={{ color: "var(--fg-3)", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+                              >
+                                <ExternalLink size={11} aria-hidden="true" />
+                                View photos
+                              </button>
+                              {openPeekId === d.id && (
+                                <PlacePeek
+                                  name={d.placeName ?? "—"}
+                                  category={d.category === "eat" ? "eat" : "visit"}
+                                  priceLevel={d.priceLevel}
+                                  description={d.description}
+                                  placeGoogleId={d.placeGoogleId}
+                                  onClose={() => setOpenPeekId(null)}
+                                />
+                              )}
+                            </div>
+                          )}
                         </div>
                         <Button
                           variant="ghost"
@@ -276,7 +324,10 @@ export default function DecisionsPage() {
                     style={{ color: "var(--fg-3)", borderTop: "1px solid var(--line-1)" }}
                   >
                     <span style={{ fontFamily: "var(--font-mono)" }}>{filtered.length}</span>{" "}
-                    {activeFilter === "eat" ? "restaurant" : "activity"}{filtered.length !== 1 ? "s" : ""} selected
+                    {activeFilter === "eat"
+                      ? `restaurant${filtered.length !== 1 ? "s" : ""}`
+                      : filtered.length !== 1 ? "activities" : "activity"}{" "}
+                    selected
                   </p>
                 </>
               )}
@@ -294,13 +345,17 @@ export default function DecisionsPage() {
               </div>
             )}
 
-            {/* Build schedule CTA */}
+            {/* Build schedule CTA — sticky below 1024px (see globals.css's
+                .decisions-cta-sticky) so it's never clipped by the fixed
+                BottomNav on first paint, static in flow at desktop. */}
             {decisions.length > 0 && (
-              <Button variant="primary" size="lg" className="w-full rounded-xl" asChild>
-                <Link href={`/trip/${params.tripId}/itinerary`}>
-                  Build my schedule →
-                </Link>
-              </Button>
+              <div className="decisions-cta-sticky">
+                <Button variant="primary" size="lg" className="w-full rounded-xl" asChild>
+                  <Link href={`/trip/${params.tripId}/itinerary`}>
+                    Build my schedule →
+                  </Link>
+                </Button>
+              </div>
             )}
           </div>
 

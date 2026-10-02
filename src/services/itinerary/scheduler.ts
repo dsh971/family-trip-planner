@@ -25,6 +25,10 @@ export interface DecisionItem {
   // keep working — a missing value just means the card falls back to the
   // deterministic gradient.
   photoReference?: string | null;
+  // Optional (U9, plan 2026-09-12-001): same reasoning as photoReference —
+  // carried through so the itinerary peek preview needs no second lookup.
+  priceLevel?: number | null;
+  description?: string | null;
 }
 
 export interface SlotDefinition {
@@ -173,7 +177,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
         adjustmentState: "scheduled",
         startTime: null,
         endTime: null,
-        payload: { category: "eat", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
+        payload: { category: "eat", placeName: d.placeName, placeGoogleId: d.placeGoogleId, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, priceLevel: d.priceLevel ?? null, description: d.description ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
       });
     }
   }
@@ -208,7 +212,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
         adjustmentState: "scheduled",
         startTime: null,
         endTime: null,
-        payload: { category: "visit", placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
+        payload: { category: "visit", placeName: d.placeName, placeGoogleId: d.placeGoogleId, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, priceLevel: d.priceLevel ?? null, description: d.description ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
       });
     }
   }
@@ -230,7 +234,7 @@ export function distributeDecisions(input: SchedulerInput): ScheduledDay[] {
       adjustmentState: "unscheduled-today",
       startTime: null,
       endTime: null,
-      payload: { category: d.category, placeName: d.placeName, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
+      payload: { category: d.category, placeName: d.placeName, placeGoogleId: d.placeGoogleId, worthTheDetour: d.worthTheDetour, photoReference: d.photoReference ?? null, priceLevel: d.priceLevel ?? null, description: d.description ?? null, lat: d.lat ?? null, lng: d.lng ?? null },
     });
   }
 

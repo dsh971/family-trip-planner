@@ -43,11 +43,32 @@ function BoundsFitter({ positions }: { positions: [number, number][] }) {
   const map = useMap();
   const posStr = JSON.stringify(positions);
   useEffect(() => {
-    if (positions.length > 1) {
-      map.fitBounds(positions as L.LatLngBoundsExpression, { padding: [30, 30] });
-    } else if (positions.length === 1) {
-      map.setView(positions[0], 15);
+    // Same zero-size-container defect as NeighborhoodMap.tsx's BoundsFitter
+    // (docs/plans/2026-09-12-001-fix-design-audit-bugs-plan.md U3): this map
+    // mounts inside `.itinerary-desktop-split { display: none }` below
+    // 1024px, so without this size-ready gate a fitBounds/setView committed
+    // at mount would frame the map for a (0, 0) viewport.
+    const container = map.getContainer();
+    let fitted = false;
+    const observer = new ResizeObserver(() => tryFit());
+
+    function tryFit() {
+      if (fitted) return;
+      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+      fitted = true;
+      observer.disconnect();
+      map.invalidateSize();
+      if (positions.length > 1) {
+        map.fitBounds(positions as L.LatLngBoundsExpression, { padding: [30, 30] });
+      } else if (positions.length === 1) {
+        map.setView(positions[0], 15);
+      }
     }
+
+    observer.observe(container);
+    tryFit();
+
+    return () => observer.disconnect();
     // posStr is the stable serialized form of positions — intentional dep
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, posStr]);

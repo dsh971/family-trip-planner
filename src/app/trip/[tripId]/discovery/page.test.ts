@@ -94,6 +94,13 @@ function shouldRenderPhoto(photoReference: string | null): boolean {
   return photoReference !== null;
 }
 
+// The gradient wrapper renders unconditionally (2026-09-12-001 U1) so a
+// photo that fails to load degrades to the same look as having no photo,
+// instead of an empty thumbnail slot.
+function shouldRenderGradient(): boolean {
+  return true;
+}
+
 function shouldRenderDescription(description: string | null): boolean {
   return description !== null;
 }
@@ -269,13 +276,12 @@ describe("PlaceCard photo hero", () => {
     expect(shouldRenderPhoto("CmRaAAAAtest_ref_abc123")).toBe(true);
   });
 
-  it("null photoReference → img does not render (shows color strip placeholder)", () => {
+  it("null photoReference → img does not render", () => {
     expect(shouldRenderPhoto(null)).toBe(false);
   });
 
-  it("place with no photo reference shows placeholder, not img", () => {
-    const noPhotoRef: string | null = null;
-    expect(shouldRenderPhoto(noPhotoRef)).toBe(false);
+  it("gradient wrapper renders regardless of photoReference, so a failed img reveals it instead of an empty slot", () => {
+    expect(shouldRenderGradient()).toBe(true);
   });
 });
 
