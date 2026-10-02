@@ -85,9 +85,37 @@ function BoundsFitter({ positions }: { positions: [number, number][] }) {
   const map = useMap();
   const posStr = JSON.stringify(positions);
   useEffect(() => {
-    if (positions.length > 0) {
-      map.fitBounds(positions as L.LatLngBoundsExpression, { padding: [40, 40] });
+    // Leaflet measures its container once, at mount, and never recomputes
+    // without an explicit invalidateSize() call. Mounted at display:none
+    // (e.g. the Neighborhoods mobile Map toggle before it's shown), that
+    // measurement is (0, 0), so fitBounds below would commit a center/zoom
+    // derived from a zero-size viewport and every marker would render off
+    // the visible map (docs/plans/2026-09-12-001-fix-design-audit-bugs-plan.md
+    // U3). Wait for the container to actually have a size before fitting,
+    // via ResizeObserver — this fires immediately when already visible (the
+    // desktop case, unchanged from before) and once the container is shown
+    // (the mobile toggle case). Disconnects after the first successful fit
+    // so a later, unrelated resize of an already-fitted map doesn't yank
+    // the view out from under the user.
+    const container = map.getContainer();
+    let fitted = false;
+    const observer = new ResizeObserver(() => tryFit());
+
+    function tryFit() {
+      if (fitted) return;
+      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+      fitted = true;
+      observer.disconnect();
+      map.invalidateSize();
+      if (positions.length > 0) {
+        map.fitBounds(positions as L.LatLngBoundsExpression, { padding: [40, 40] });
+      }
     }
+
+    observer.observe(container);
+    tryFit();
+
+    return () => observer.disconnect();
     // posStr is the stable serialized form of positions — intentional dep
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, posStr]);

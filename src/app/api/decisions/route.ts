@@ -39,6 +39,9 @@ export async function GET(request: Request) {
       rating: places.rating,
       priceLevel: places.priceLevel,
       photoReference: places.photoReference,
+      // Added for the peek preview (U9, plan 2026-09-12-001) — Discovery
+      // already had this field, Decisions didn't.
+      description: places.description,
     })
     .from(decisions)
     .leftJoin(places, eq(decisions.placeId, places.id))

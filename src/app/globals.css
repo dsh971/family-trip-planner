@@ -503,6 +503,36 @@ body {
 }
 
 /*
+  Decisions CTA clipping fix (docs/plans/2026-09-12-001-fix-design-audit-
+  bugs-plan.md U4). Below 1024px, the "Build my schedule" CTA is the last
+  child of .decisions-list-col; sticking it to the scroll viewport's bottom
+  edge means it's never clipped by the fixed BottomNav on first paint,
+  regardless of how many cards are in the active tab, while still settling
+  into normal flow at the end of the list once scrolled there. `pb-8` on
+  .decisions-list-col (not page.tsx's old `pb-24` on <main>, now removed)
+  is what gives the sticky element room to travel — a sticky element can't
+  stick past its containing block's own bottom edge, and <main> was one
+  level too high to supply that. At >=1024px the CTA sits in flow at the
+  end of the 460px list column, matching Web-Decisions.dc.html, with no
+  sticky behavior needed since the column doesn't scroll independently
+  there.
+*/
+.decisions-cta-sticky {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 4px;
+  background: var(--bg-0);
+}
+
+@media (min-width: 1024px) {
+  .decisions-cta-sticky {
+    position: static;
+    padding: 0;
+    background: none;
+  }
+}
+
+/*
   Itinerary desktop split-pane (U7, plan 2026-08-23-002-feat-hybrid-design-
   fidelity-gaps). Below 1024px the existing continuous-scroll-with-jump-
   nav-pills timeline must stay pixel-for-pixel unchanged — rather than make

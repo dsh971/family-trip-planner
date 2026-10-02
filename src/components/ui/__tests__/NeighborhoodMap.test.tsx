@@ -39,7 +39,11 @@ vi.mock("react-leaflet", () => ({
   ),
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Circle: () => null,
-  useMap: () => ({ fitBounds: vi.fn() }),
+  useMap: () => ({
+    fitBounds: vi.fn(),
+    invalidateSize: vi.fn(),
+    getContainer: () => ({ clientWidth: 300, clientHeight: 300 }),
+  }),
 }));
 
 vi.mock("leaflet/dist/leaflet.css", () => ({}));
@@ -53,12 +57,15 @@ const sampleNeighborhoods = [
 
 describe("NeighborhoodMap", () => {
   beforeAll(() => {
-    // jsdom doesn't implement ResizeObserver
-    global.ResizeObserver = vi.fn(() => ({
-      observe: vi.fn(),
-      unobserve: vi.fn(),
-      disconnect: vi.fn(),
-    }));
+    // jsdom doesn't implement ResizeObserver. A real class, not vi.fn(() =>
+    // ({...})), since BoundsFitter now does `new ResizeObserver(...)` — an
+    // arrow-function mock throws "is not a constructor" under `new`.
+    class MockResizeObserver {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    }
+    global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
   });
 
   it("renders without throwing when given empty neighborhoods and selectedId null", () => {

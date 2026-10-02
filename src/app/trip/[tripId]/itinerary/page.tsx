@@ -13,8 +13,9 @@ import {
   EmptyState,
 } from "@sumiui/react";
 import type { TimelineItemData } from "@sumiui/react";
-import { Utensils, MapPin } from "lucide-react";
+import { Utensils, MapPin, ExternalLink } from "lucide-react";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import PlacePeek from "@/components/ui/PlacePeek";
 import { getPlaceGradient } from "@/lib/placeGradient";
 import type { RouteMapStop } from "@/components/ui/RouteMap";
 
@@ -75,46 +76,115 @@ function formatDate(isoDate: string): string {
   return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
+// Extracted so the peek preview (U9, plan 2026-09-12-001) can own its own
+// open/close state — segmentToTimelineItem is a plain data-building
+// function, not a component, so it can't call useState itself.
+function ItineraryPlaceTitle({
+  name,
+  category,
+  isDetour,
+  photoReference,
+  placeGoogleId,
+  priceLevel,
+  description,
+}: {
+  name: string;
+  category: string | undefined;
+  isDetour: boolean;
+  photoReference: string | null | undefined;
+  placeGoogleId: string | null | undefined;
+  priceLevel: number | null | undefined;
+  description: string | null | undefined;
+}) {
+  const [peekOpen, setPeekOpen] = useState(false);
+  return (
+    <span className="flex items-center gap-2">
+      {/* Gradient + icon render unconditionally so a failed photo
+          (dead/expired photo reference, see docs/plans/2026-09-12-001-
+          fix-design-audit-bugs-plan.md U1) degrades to the same look as
+          having no photo, instead of leaving an empty slot. */}
+      <span
+        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 relative overflow-hidden"
+        style={{ background: getPlaceGradient(name) }}
+        aria-hidden="true"
+      >
+        {category === "eat" ? (
+          <Utensils size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
+        ) : (
+          <MapPin size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
+        )}
+        {photoReference && (
+          <img
+            src={`/api/places/photo?ref=${encodeURIComponent(photoReference)}&width=64`}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 w-8 h-8 rounded-lg"
+            style={{ objectFit: "cover", display: "block" }}
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+          />
+        )}
+      </span>
+      <span>{name}</span>
+      <Badge variant={category === "eat" ? "warning" : "info"}>
+        {category === "eat" ? "Eat" : "Visit"}
+      </Badge>
+      {isDetour && <Badge variant="neutral">Detour</Badge>}
+      {/* In-app peek preview (U9, plan 2026-09-12-001), replacing the plain
+          external link U7 shipped — see PlacePeek for why the content is
+          what it is. Only present once the itinerary has been rebuilt
+          after this unit shipped (scheduler.ts now threads placeGoogleId,
+          priceLevel, and description into the payload; older segments
+          predate that and simply omit the link). */}
+      {placeGoogleId && (
+        <div style={{ position: "relative", display: "inline-flex" }}>
+          <button
+            type="button"
+            onClick={() => setPeekOpen((v) => !v)}
+            aria-label="View photos on Google Maps"
+            title="View photos on Google Maps"
+            style={{ color: "var(--fg-3)", display: "inline-flex", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+          >
+            <ExternalLink size={12} />
+          </button>
+          {peekOpen && (
+            <PlacePeek
+              name={name}
+              category={category === "eat" ? "eat" : "visit"}
+              priceLevel={priceLevel ?? null}
+              description={description ?? null}
+              placeGoogleId={placeGoogleId}
+              onClose={() => setPeekOpen(false)}
+            />
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function segmentToTimelineItem(seg: SegmentRow, index: number): TimelineItemData {
   if (seg.segmentType === "place") {
     const name = seg.payload?.["placeName"] as string | undefined;
     const category = seg.payload?.["category"] as string | undefined;
     const isDetour = seg.payload?.["worthTheDetour"] === true;
     const photoReference = seg.payload?.["photoReference"] as string | null | undefined;
+    const placeGoogleId = seg.payload?.["placeGoogleId"] as string | null | undefined;
+    const priceLevel = seg.payload?.["priceLevel"] as number | null | undefined;
+    const description = seg.payload?.["description"] as string | null | undefined;
     return {
       id: String(seg.id),
       time: seg.startTime ?? undefined,
       marker: "dot-ok",
       title: (
-        <span className="flex items-center gap-2">
-          {photoReference ? (
-            <img
-              src={`/api/places/photo?ref=${encodeURIComponent(photoReference)}&width=64`}
-              alt=""
-              loading="lazy"
-              className="w-8 h-8 rounded-lg shrink-0"
-              style={{ objectFit: "cover", display: "block" }}
-              onError={(e) => { (e.currentTarget.style.display = "none"); }}
-            />
-          ) : (
-            <span
-              className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: getPlaceGradient(name) }}
-              aria-hidden="true"
-            >
-              {category === "eat" ? (
-                <Utensils size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
-              ) : (
-                <MapPin size={14} style={{ color: "rgba(255,255,255,0.85)" }} />
-              )}
-            </span>
-          )}
-          <span>{name ?? "—"}</span>
-          <Badge variant={category === "eat" ? "warning" : "info"}>
-            {category === "eat" ? "Eat" : "Visit"}
-          </Badge>
-          {isDetour && <Badge variant="neutral">Detour</Badge>}
-        </span>
+        <ItineraryPlaceTitle
+          name={name ?? "—"}
+          category={category}
+          isDetour={isDetour}
+          photoReference={photoReference}
+          placeGoogleId={placeGoogleId}
+          priceLevel={priceLevel}
+          description={description}
+        />
       ),
     };
   }

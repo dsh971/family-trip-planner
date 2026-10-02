@@ -27,7 +27,12 @@ vi.mock("react-leaflet", () => ({
   Polyline: ({ positions }: { positions: [number, number][] }) => (
     <div data-testid="polyline" data-points={positions.length} />
   ),
-  useMap: () => ({ fitBounds: vi.fn(), setView: vi.fn() }),
+  useMap: () => ({
+    fitBounds: vi.fn(),
+    setView: vi.fn(),
+    invalidateSize: vi.fn(),
+    getContainer: () => ({ clientWidth: 300, clientHeight: 300 }),
+  }),
 }));
 
 vi.mock("leaflet/dist/leaflet.css", () => ({}));
@@ -36,11 +41,15 @@ import RouteMap from "../RouteMap";
 
 describe("RouteMap", () => {
   beforeAll(() => {
-    global.ResizeObserver = vi.fn(() => ({
-      observe: vi.fn(),
-      unobserve: vi.fn(),
-      disconnect: vi.fn(),
-    })) as unknown as typeof ResizeObserver;
+    // jsdom doesn't implement ResizeObserver. A real class, not vi.fn(() =>
+    // ({...})), since BoundsFitter now does `new ResizeObserver(...)` — an
+    // arrow-function mock throws "is not a constructor" under `new`.
+    class MockResizeObserver {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    }
+    global.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
   });
 
   it("renders without throwing when given zero stops", () => {

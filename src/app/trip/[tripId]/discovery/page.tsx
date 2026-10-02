@@ -9,10 +9,11 @@ import {
   Alert,
   EmptyState,
 } from "@sumiui/react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Utensils, Landmark, ExternalLink } from "lucide-react";
 import { useResearchStream } from "@/components/ui/useResearchStream";
 import ResearchHighlight from "@/components/ui/ResearchHighlight";
 import EditorialBackdrop from "@/components/ui/EditorialBackdrop";
+import PlacePeek from "@/components/ui/PlacePeek";
 import { getPlaceGradient } from "@/lib/placeGradient";
 
 const DiscoveryMap = dynamic(
@@ -204,6 +205,7 @@ function PlaceCard({
   distanceLabel: string;
 }) {
   const signal = corroborationToSignal(place.corroborationScore);
+  const [peekOpen, setPeekOpen] = useState(false);
 
   if (currentDecision === "no") {
     return (
@@ -249,21 +251,40 @@ function PlaceCard({
       }
     >
         <div className="flex gap-3">
-          {/* Thumbnail */}
-          <div className="shrink-0" style={{ width: "96px", height: "96px" }}>
-            {place.photoReference ? (
+          {/* Thumbnail — gradient + category icon render unconditionally
+              (docs/plans/2026-09-12-001-fix-design-audit-bugs-plan.md U1, U6)
+              so a failed or absent photo degrades to a category-labeled
+              block instead of an empty slot or a flat abstract gradient. */}
+          <div
+            className="shrink-0"
+            style={{
+              width: "96px",
+              height: "96px",
+              borderRadius: "8px",
+              background: getPlaceGradient(place.placeId ?? place.name),
+              overflow: "hidden",
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {/* aria-hidden sits on the icon, not the wrapper: the wrapper
+                also holds the lightbox's clickable <img>, and hiding that
+                subtree would hide a control from assistive tech. */}
+            {place.category === "eat" ? (
+              <Utensils size={28} style={{ color: "rgba(255,255,255,0.85)" }} aria-hidden="true" />
+            ) : (
+              <Landmark size={28} style={{ color: "rgba(255,255,255,0.85)" }} aria-hidden="true" />
+            )}
+            {place.photoReference && (
               <img
                 src={`/api/places/photo?ref=${encodeURIComponent(place.photoReference)}&width=200`}
                 alt=""
                 loading="lazy"
-                style={{ width: "96px", height: "96px", objectFit: "cover", borderRadius: "8px", cursor: "zoom-in", display: "block" }}
+                style={{ position: "absolute", inset: 0, width: "96px", height: "96px", objectFit: "cover", cursor: "zoom-in", display: "block" }}
                 onClick={() => onImageClick?.(place.photoReference!)}
-                onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }}
-              />
-            ) : (
-              <div
-                style={{ width: "96px", height: "96px", borderRadius: "8px", background: getPlaceGradient(place.placeId ?? place.name) }}
-                aria-hidden="true"
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
               />
             )}
           </div>
@@ -321,6 +342,31 @@ function PlaceCard({
               )}
               <span style={{ color: "var(--line-2)" }}>·</span>
               <span style={{ color: "var(--fg-3)", fontFamily: "var(--font-mono)" }}>{distanceLabel}</span>
+            </div>
+
+            {/* In-app peek preview (U9, plan 2026-09-12-001), replacing the
+                plain external link U7 shipped — see PlacePeek for why the
+                content is what it is. */}
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setPeekOpen((v) => !v); }}
+                className="inline-flex items-center gap-1 text-xs w-fit"
+                style={{ color: "var(--fg-3)", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+              >
+                <ExternalLink size={11} aria-hidden="true" />
+                View photos
+              </button>
+              {peekOpen && (
+                <PlacePeek
+                  name={place.name}
+                  category={place.category}
+                  priceLevel={place.priceLevel}
+                  description={place.description}
+                  placeGoogleId={place.placeId}
+                  onClose={() => setPeekOpen(false)}
+                />
+              )}
             </div>
 
             {/* Signal pills */}
@@ -859,6 +905,7 @@ export default function DiscoveryPage() {
             src={`/api/places/photo?ref=${encodeURIComponent(lightboxRef)}&width=1200`}
             alt="Place photo"
             onClick={(e) => e.stopPropagation()}
+            onError={() => setLightboxRef(null)}
             style={{
               maxWidth: "90vw",
               maxHeight: "90vh",
