@@ -227,6 +227,22 @@ describe("getPlaceDetails", () => {
     expect(details!.openingHours).toEqual([]);
   });
 
+  it("requests only valid legacy-endpoint fields — no child_friendly or menu_for_children", async () => {
+    let capturedUrl = "";
+    global.fetch = vi.fn(async (url) => {
+      capturedUrl = url as string;
+      return {
+        ok: true,
+        json: async () => ({ status: "OK", result: {} }),
+      } as Response;
+    });
+
+    await getPlaceDetails("ChIJ_place1");
+
+    const fields = new URL(capturedUrl).searchParams.get("fields");
+    expect(fields).toBe("opening_hours,editorial_summary");
+  });
+
   it("returns null on non-200 status", async () => {
     global.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
@@ -234,6 +250,16 @@ describe("getPlaceDetails", () => {
     } as Response);
 
     const details = await getPlaceDetails("ChIJ_missing");
+    expect(details).toBeNull();
+  });
+
+  it("returns null when status is not OK despite a 200 HTTP response", async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: "INVALID_REQUEST", result: {} }),
+    } as Response);
+
+    const details = await getPlaceDetails("ChIJ_bad_fields");
     expect(details).toBeNull();
   });
 
