@@ -158,6 +158,11 @@ export async function getPlaceDetails(
       return { startTime };
     });
 
+    // r.child_friendly/r.menu_for_children can never be present on a real
+    // response now that the fields= request above no longer asks for them
+    // (plan 2026-10-08-001 U1) — both always resolve to null. Left in place
+    // rather than removed since PlaceDetails/the places schema still carry
+    // these columns pending a possible future Places API (New) migration.
     return {
       goodForChildren: r.child_friendly ?? null,
       menuForChildren: r.menu_for_children ?? null,

@@ -209,6 +209,57 @@ describe("runBackfill", () => {
     expect(summary.updated).toBe(1);
   });
 
+  it("logs and skips every row for a placeId whose getPlaceDetails call throws, without aborting the run", async () => {
+    const neighborhood = seedNeighborhood(db);
+    insertPlace(db, neighborhood.id, { placeId: "ChIJ_throws" });
+    insertPlace(db, neighborhood.id, { placeId: "ChIJ_ok" });
+    vi.mocked(getPlaceDetails).mockImplementation(async (placeId: string) => {
+      if (placeId === "ChIJ_throws") throw new Error("simulated network error");
+      return {
+        goodForChildren: null,
+        menuForChildren: null,
+        openingHours: [{ startTime: "09:00" }],
+        description: "Fine.",
+      };
+    });
+
+    const summary = await runBackfill(db);
+
+    expect(summary.scanned).toBe(2);
+    expect(summary.skipped).toBe(1);
+    expect(summary.updated).toBe(1);
+    expect(summary.skips).toContainEqual(
+      expect.objectContaining({ placeId: "ChIJ_throws", reason: expect.stringContaining("simulated network error") })
+    );
+  });
+
+  it("preserves an already-good field when the fresh fetch only has data for its sibling field", async () => {
+    const neighborhood = seedNeighborhood(db);
+    const row = insertPlace(db, neighborhood.id, {
+      placeId: "ChIJ_partial",
+      openingHours: [{ startTime: "09:00" }],
+      description: null,
+    });
+    // A fresh fetch that returns a description but no opening hours this
+    // time should not null out the opening hours this row already had.
+    vi.mocked(getPlaceDetails).mockResolvedValue({
+      goodForChildren: null,
+      menuForChildren: null,
+      openingHours: [],
+      description: "Newly found description.",
+    });
+
+    await runBackfill(db);
+
+    const after = db
+      .select()
+      .from(schema.places)
+      .where(eq(schema.places.id, row.id))
+      .all()[0]!;
+    expect(after.openingHours).toEqual([{ startTime: "09:00" }]);
+    expect(after.description).toBe("Newly found description.");
+  });
+
   it("does not miscount a row deleted between the initial select and its update", async () => {
     const neighborhood = seedNeighborhood(db);
     const row = insertPlace(db, neighborhood.id, { placeId: "ChIJ_deleted" });

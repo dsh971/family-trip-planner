@@ -266,7 +266,7 @@ export async function* researchNeighborhoodPlaces(
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
           photoReference: place.photoReference ?? null,
-          description: details?.description ?? null,
+          description,
         });
       },
       8
