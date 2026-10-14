@@ -17,7 +17,25 @@ import {
   placeRowToCandidateBase,
   createResearchAccumulators,
   finalizeDistances,
+  buildDetailsRefreshSet,
 } from "@/services/discovery/research";
+
+describe("buildDetailsRefreshSet", () => {
+  it("defaults to empty hours and null description when details is null", () => {
+    expect(buildDetailsRefreshSet(null)).toEqual({ openingHours: [], description: null });
+  });
+
+  it("passes through real values from a resolved PlaceDetails", () => {
+    expect(
+      buildDetailsRefreshSet({
+        goodForChildren: null,
+        menuForChildren: null,
+        openingHours: [{ startTime: "09:00" }],
+        description: "A cozy spot.",
+      })
+    ).toEqual({ openingHours: [{ startTime: "09:00" }], description: "A cozy spot." });
+  });
+});
 
 const MIGRATIONS_FOLDER = path.resolve(__dirname, "../../db/migrations");
 

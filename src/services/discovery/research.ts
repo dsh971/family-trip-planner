@@ -26,7 +26,7 @@ import { getDb } from "@/db/client";
 import { places } from "@/db/schema";
 import type { Destination, Neighborhood, Place } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { textSearchPlaces, getPlaceDetails } from "@/services/discovery/places";
+import { textSearchPlaces, getPlaceDetails, type PlaceDetails } from "@/services/discovery/places";
 import { buildSources, corroborationScore, namesMatch } from "@/services/discovery/corroboration";
 import {
   annotateDistances,
@@ -38,6 +38,16 @@ import { WGPlace, WGUnavailableError } from "@/services/wanderlust-goat/types";
 import { withConcurrencyLimit } from "@/services/research/concurrency";
 
 type Db = ReturnType<typeof getDb>;
+
+// Shared by the research upsert below and scripts/backfill-place-details.ts
+// (plan 2026-10-08-001 U2), so the two write paths can't silently diverge on
+// what a "details refresh" touches.
+export function buildDetailsRefreshSet(details: PlaceDetails | null) {
+  return {
+    openingHours: details?.openingHours ?? [],
+    description: details?.description ?? null,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Cross-category accumulators
@@ -183,7 +193,7 @@ export async function* researchNeighborhoodPlaces(
         const details = await getPlaceDetails(place.placeId);
         const sources = buildSources(place.name, wgNames, tabelogNames);
         const score = corroborationScore(sources);
-        const hours = details?.openingHours ?? [];
+        const { openingHours: hours, description } = buildDetailsRefreshSet(details);
 
         acc.openingHoursMap.set(place.placeId, hours);
 
@@ -218,7 +228,7 @@ export async function* researchNeighborhoodPlaces(
             openingHours: hours,
             enrichedAt: new Date(),
             photoReference: place.photoReference ?? null,
-            description: details?.description ?? null,
+            description,
           })
           .onConflictDoUpdate({
             target: [places.placeId, places.neighborhoodId],
@@ -231,7 +241,7 @@ export async function* researchNeighborhoodPlaces(
               openingHours: hours,
               enrichedAt: new Date(),
               photoReference: sql`excluded.photo_reference`,
-              description: sql`excluded.description`,
+              description,
             },
           })
           .returning()
@@ -256,7 +266,7 @@ export async function* researchNeighborhoodPlaces(
           distanceFromCentroidMeters: 0,
           worthTheDetour: false,
           photoReference: place.photoReference ?? null,
-          description: details?.description ?? null,
+          description,
         });
       },
       8

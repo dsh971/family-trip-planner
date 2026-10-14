@@ -1,3 +1,5 @@
+> **Deprecated:** This repo is no longer maintained. Development has moved to [family-trip-planner2](https://github.com/dsh971/family-trip-planner2).
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
